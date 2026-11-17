@@ -1,0 +1,79 @@
+# Konfiguration – Frankfurt-Hahn – Nador | Günstige Flüge finden
+# Alle Schwellenwerte, Zeiten und Farben können hier angepasst werden.
+
+[page]
+name = "Frankfurt-Hahn – Nador | Günstige Flüge finden"
+disclaimer = "Unabhängige Informationsseite. Keine Verbindung zu Ryanair. Preise können sich jederzeit ändern."
+timezone = "Europe/Berlin"
+hashtags = "#Nador #FrankfurtHahn #Ryanair #GünstigFliegen #Marokko"
+
+[route]
+origin = "HHN"
+destination = "NDR"
+origin_name = "Frankfurt-Hahn"
+destination_name = "Nador"
+airline = "Ryanair"
+currency = "EUR"
+months_ahead = 6            # aktueller Monat + 5 weitere
+
+[fare]
+# Bedingungen des günstigsten Ryanair-Tarifs ("Basic"), auf den sich alle Preise beziehen
+baggage_note = "Basic-Tarif: nur 1 kleine Tasche (40×30×20 cm) inklusive. Handgepäck-Trolley und Aufgabegepäck kosten extra."
+
+[fetch]
+request_delay_seconds = 2.0     # Pause zwischen Anfragen (Server schonen)
+retries = 3
+retry_backoff_seconds = 10
+timeout_seconds = 30
+min_valid_price = 5.0           # Preise außerhalb dieses Bereichs gelten als fehlerhaft
+max_valid_price = 1500.0
+
+[stay]
+min_nights = 3
+max_nights = 30
+
+[price_colors]
+green_below = 50      # Grün:   < 50 €
+yellow_below = 100    # Gelb:   50 € bis < 100 €
+orange_up_to = 200    # Orange: 100 € bis 200 €;  Rot: > 200 €
+
+[alerts]
+price_drop_min_eur = 10          # PREISSTURZ: mindestens 10 € …
+price_drop_min_pct = 20          # … und mindestens 20 % günstiger
+top_offer_below = 30             # TOP-ANGEBOT: neuer Flug unter 30 €
+cheap_round_trip_below = 50      # GÜNSTIGER HIN- UND RÜCKFLUG: Kombination unter 50 €
+last_minute_days = 7             # LAST-MINUTE: Abflug in den nächsten 7 Tagen …
+last_minute_below = 30           # … unter 30 €
+max_extra_posts_per_day = 3
+max_items_per_alert_post = 4
+# Wenn ein Flug mehrere Bedingungen erfüllt, gewinnt die erste in dieser Liste
+priority = ["PREISSTURZ", "NEUER_TIEFSTPREIS", "LAST_MINUTE", "TOP_ANGEBOT"]
+
+[schedule]
+daily_post_hour = 8        # Uhrzeit (Europe/Berlin) des täglichen Beitrags
+weekly_post_weekday = 6    # 0 = Montag … 6 = Sonntag
+daily_months = 2           # täglich: aktueller + nächster Monat
+weekly_months = 6          # sonntags: die nächsten 6 Monate
+
+[facebook]
+# Automatisches Veröffentlichen ist AUS. Erst nach ausdrücklicher Freigabe aktivieren
+# (zusätzlich muss in GitHub die Variable FACEBOOK_AUTOPUBLISH=true gesetzt sein).
+autopublish = false
+graph_api_version = "v21.0"
+
+[theme]
+background = "#0D1117"
+surface = "#161B24"
+surface_2 = "#1E2531"
+border = "#2A3342"
+text = "#F2F5F9"
+muted = "#8E99AB"
+accent = "#4C9AFF"
+green = "#22C55E"
+yellow = "#FACC15"
+orange = "#FB923C"
+red = "#F05252"
+grey = "#4B5563"
+purple = "#A78BFA"
+teal = "#2DD4BF"
+test_banner = "#FACC15"

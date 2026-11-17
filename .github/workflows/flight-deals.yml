@@ -1,0 +1,75 @@
+name: Flugpreise Hahn – Nador
+
+on:
+  schedule:
+    # Alle 6 Stunden Preise aktualisieren (Minute 17, weil GitHub volle Stunden oft verzögert)
+    - cron: "17 */6 * * *"
+    # Täglicher Beitrag um 08:00 Europe/Berlin: 06:03 UTC (Sommerzeit) bzw. 07:03 UTC (Winterzeit).
+    # Das Skript prüft selbst die Berliner Uhrzeit und erstellt den Beitrag nur einmal pro Tag.
+    - cron: "3 6,7 * * *"
+  workflow_dispatch:
+    inputs:
+      aktion:
+        description: "Was soll passieren?"
+        type: choice
+        options: [automatisch, tagesbeitrag-erzwingen, wochenbeitrag-erzwingen, demo]
+        default: automatisch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hahn-nador-flight-deals
+  cancel-in-progress: false
+
+jobs:
+  flugpreise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      # Facebook: Veröffentlichung ist AUS. Erst nach Freigabe in config.toml UND
+      # als Repository-Variable FACEBOOK_AUTOPUBLISH=true aktivieren.
+      FACEBOOK_AUTOPUBLISH: ${{ vars.FACEBOOK_AUTOPUBLISH }}
+      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Preise abfragen und Beiträge erstellen
+        run: |
+          case "${{ inputs.aktion }}" in
+            tagesbeitrag-erzwingen)  python -m flightdeals run --force daily ;;
+            wochenbeitrag-erzwingen) python -m flightdeals run --force weekly ;;
+            demo)                    python -m flightdeals demo ;;
+            *)                       python -m flightdeals run ;;
+          esac
+
+      - name: Preisverlauf speichern
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data/*.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "Preisverlauf $(date -u +'%Y-%m-%d %H:%M') UTC" && git push)
+
+      - name: Bilder und Texte als ZIP bereitstellen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: facebook-beitraege-${{ github.run_number }}
+          path: output/
+          if-no-files-found: ignore
+          retention-days: 30

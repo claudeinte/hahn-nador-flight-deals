@@ -1,0 +1,142 @@
+"""Gemeinsame Zeichenfunktionen: Schriften, Farben, Kopf- und Fußzeile, Testbanner."""
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+from ..config import Config
+
+W, H = 1080, 1350
+M = 48  # Seitenrand
+
+WEIGHTS = {"regular": "Inter-Regular.ttf", "medium": "Inter-Medium.ttf", "semibold": "Inter-SemiBold.ttf",
+           "bold": "Inter-Bold.ttf", "extrabold": "Inter-ExtraBold.ttf"}
+
+
+def hex2rgb(h: str) -> tuple:
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def mix(a: tuple, b: tuple, t: float) -> tuple:
+    return tuple(round(a[i] * (1 - t) + b[i] * t) for i in range(3))
+
+
+class Theme:
+    def __init__(self, cfg: Config):
+        for k, v in cfg["theme"].items():
+            setattr(self, k, hex2rgb(v))
+
+
+class Painter:
+    """Kapselt Bild, Zeichenfläche, Schriften und Theme."""
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.t = Theme(cfg)
+        self.img = Image.new("RGB", (W, H), self.t.background)
+        self.d = ImageDraw.Draw(self.img)
+        self.fonts_dir = cfg.fonts_dir
+
+    def font(self, weight: str, size: int) -> ImageFont.FreeTypeFont:
+        return _font(str(self.fonts_dir / WEIGHTS[weight]), size)
+
+    def tw(self, text: str, font) -> int:
+        return int(self.d.textlength(text, font=font))
+
+    def fit(self, text: str, weight: str, size: int, max_w: int, min_size: int = 12):
+        while size > min_size and self.tw(text, self.font(weight, size)) > max_w:
+            size -= 1
+        return self.font(weight, size)
+
+    def text(self, xy, text, weight, size, fill, anchor="la", max_w: int | None = None):
+        f = self.fit(text, weight, size, max_w) if max_w else self.font(weight, size)
+        self.d.text(xy, text, font=f, fill=fill, anchor=anchor)
+        return f
+
+    def rrect(self, box, r, fill=None, outline=None, width=1):
+        self.d.rounded_rectangle(box, radius=r, fill=fill, outline=outline, width=width)
+
+    def pill(self, x, y, text, weight, size, fg, bg, pad_x=18, pad_y=10, anchor_right=False):
+        f = self.font(weight, size)
+        w = self.tw(text, f)
+        h = size + pad_y * 2
+        x0 = x - w - pad_x * 2 if anchor_right else x
+        self.rrect((x0, y, x0 + w + pad_x * 2, y + h), h // 2, fill=bg)
+        self.d.text((x0 + pad_x, y + h / 2), text, font=f, fill=fg, anchor="lm")
+        return x0, x0 + w + pad_x * 2, y + h
+
+    def wrap(self, text: str, font, max_w: int) -> list[str]:
+        words, lines, cur = text.split(), [], ""
+        for w in words:
+            test = f"{cur} {w}".strip()
+            if self.tw(test, font) <= max_w:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines
+
+    def paragraph(self, x, y, text, weight, size, fill, max_w, line_gap=6) -> int:
+        f = self.font(weight, size)
+        for line in self.wrap(text, f, max_w):
+            self.d.text((x, y), line, font=f, fill=fill)
+            y += size + line_gap
+        return y
+
+    # --- wiederkehrende Elemente -------------------------------------------------
+    def header(self):
+        t = self.t
+        self.text((M, 40), self.cfg["page"]["name"], "semibold", 24, t.muted, max_w=W - 2 * M - 170)
+        self.pill(W - M, 30, self.cfg["route"]["airline"], "bold", 22, t.background, t.accent, anchor_right=True)
+
+    def footer(self, lines: list[tuple[str, tuple]], size: int = 17, bottom: int = H - 26) -> int:
+        """Zeichnet Zeilen (Text, Farbe) von unten nach oben; gibt die oberste y-Position zurück."""
+        f = self.font("medium", size)
+        wrapped = []
+        for text, color in lines:
+            for line in self.wrap(text, f, W - 2 * M):
+                wrapped.append((line, color))
+        y = bottom - len(wrapped) * (size + 7)
+        top = y
+        for line, color in wrapped:
+            self.d.text((M, y), line, font=f, fill=color)
+            y += size + 7
+        return top
+
+    def test_banner(self):
+        t = self.t
+        self.d.rectangle((0, 0, W, 22), fill=t.test_banner)
+        self.d.text((W / 2, 11), "TESTDATEN – NUR BEISPIEL", font=self.font("extrabold", 15), fill=t.background, anchor="mm")
+        # diagonales Wasserzeichen
+        mark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        md = ImageDraw.Draw(mark)
+        md.text((W / 2, H / 2), "TESTDATEN", font=self.font("extrabold", 150), fill=(*t.test_banner, 20), anchor="mm")
+        mark = mark.rotate(32, resample=Image.BICUBIC)
+        self.img.paste(mark, (0, 0), mark)
+        self.d = ImageDraw.Draw(self.img)
+
+    def save(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.img.save(path, "PNG", optimize=True)
+
+
+@lru_cache(maxsize=256)
+def _font(path: str, size: int):
+    return ImageFont.truetype(path, size)
+
+
+def price_color(price: float, cfg: Config, t: Theme) -> tuple:
+    c = cfg["price_colors"]
+    if price < c["green_below"]:
+        return t.green
+    if price < c["yellow_below"]:
+        return t.yellow
+    if price <= c["orange_up_to"]:
+        return t.orange
+    return t.red
