@@ -129,7 +129,7 @@ def render_month(cfg: Config, month: date, snap: Snapshot, combo: Combo | None, 
     t = p.t
     r = cfg["route"]
     p.header()
-    p.text((M, 82), T["calendar"].upper(), "bold", 22, t.accent)
+    p.text((M, 82), f"{T['calendar'].upper()} · {r['airline'].upper()}-DIREKTFLÜGE", "bold", 22, t.accent)
     p.text((M, 108), month_name(month.year, month.month), "extrabold", 54, t.text)
 
     hl_out = {combo.outbound.day} if combo else set()

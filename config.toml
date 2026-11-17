@@ -5,6 +5,7 @@
 name = "Frankfurt-Hahn – Nador | Günstige Flüge finden"
 disclaimer = "Unabhängige Informationsseite. Keine Verbindung zu Ryanair. Preise können sich jederzeit ändern."
 timezone = "Europe/Berlin"
+badge = "Unabhängige Infoseite"   # Etikett oben rechts in allen Bildern
 hashtags = "#Nador #FrankfurtHahn #Ryanair #GünstigFliegen #Marokko"
 
 [route]

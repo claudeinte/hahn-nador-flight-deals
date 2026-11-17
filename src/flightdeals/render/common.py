@@ -92,8 +92,13 @@ class Painter:
     # --- wiederkehrende Elemente -------------------------------------------------
     def header(self):
         t = self.t
-        self.text((M, 40), self.cfg["page"]["name"], "semibold", 24, t.muted, max_w=W - 2 * M - 170)
-        self.pill(W - M, 30, self.cfg["route"]["airline"], "bold", 22, t.background, t.accent, anchor_right=True)
+        label = self.cfg["page"].get("badge", "Unabhängige Infoseite")
+        f = self.font("semibold", 18)
+        bw = self.tw(label, f) + 32
+        self.text((M, 40), self.cfg["page"]["name"], "semibold", 24, t.muted, max_w=W - 2 * M - bw - 20)
+        # neutrales Etikett (kein Airline-Logo, damit nichts wie ein offizieller Ryanair-Beitrag aussieht)
+        self.rrect((W - M - bw, 34, W - M, 70), 18, outline=t.border, width=2)
+        self.d.text((W - M - bw / 2, 52), label, font=f, fill=t.muted, anchor="mm")
 
     def footer(self, lines: list[tuple[str, tuple]], size: int = 17, bottom: int = H - 26) -> int:
         """Zeichnet Zeilen (Text, Farbe) von unten nach oben; gibt die oberste y-Position zurück."""
