@@ -1,6 +1,7 @@
 """Gemeinsame Zeichenfunktionen: Schriften, Farben, Kopf- und Fußzeile, Testbanner."""
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 from pathlib import Path
 
@@ -113,6 +114,29 @@ class Painter:
             self.d.text((M, y), line, font=f, fill=color)
             y += size + 7
         return top
+
+    def plane(self, cx: float, cy: float, size: float, angle: float, color: tuple):
+        """Flugzeug-Symbol (Silhouette, Nase nach rechts). angle in Grad: negativ = steigt (Hinflug),
+        positiv = sinkt (Rückflug). Wird 4-fach vergrößert gezeichnet und verkleinert (glatte Kanten)."""
+        k = 4
+        s = int(size * k)
+        layer = Image.new("RGBA", (s * 2, s * 2), (0, 0, 0, 0))
+        d = ImageDraw.Draw(layer)
+        parts = [
+            [(-1.0, -0.10), (0.70, -0.10), (1.0, 0.0), (0.70, 0.10), (-1.0, 0.10)],          # Rumpf
+            [(0.15, -0.06), (-0.30, -0.95), (-0.48, -0.95), (-0.20, -0.06)],                 # Flügel oben
+            [(0.15, 0.06), (-0.30, 0.95), (-0.48, 0.95), (-0.20, 0.06)],                      # Flügel unten
+            [(-0.70, -0.06), (-0.92, -0.42), (-1.02, -0.42), (-0.90, -0.06)],                 # Leitwerk oben
+            [(-0.70, 0.06), (-0.92, 0.42), (-1.02, 0.42), (-0.90, 0.06)],                     # Leitwerk unten
+        ]
+        a = math.radians(angle)
+        ca, sa = math.cos(a), math.sin(a)
+        for poly in parts:
+            pts = [(s + (x * ca - y * sa) * s * 0.5, s + (x * sa + y * ca) * s * 0.5) for x, y in poly]
+            d.polygon(pts, fill=(*color, 255))
+        layer = layer.resize((int(size * 2), int(size * 2)), Image.LANCZOS)
+        self.img.paste(layer, (int(cx - size), int(cy - size)), layer)
+        self.d = ImageDraw.Draw(self.img)
 
     def info_strip(self, bottom: int) -> int:
         """Hervorgehobene Hinweis-Leiste (Ryanair / Buchung über Link im Beitrag). Gibt die Oberkante zurück."""

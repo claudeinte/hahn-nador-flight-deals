@@ -33,8 +33,11 @@ def day_state(snap: Snapshot, route: str, day: date, now: datetime):
 def _calendar_block(p: Painter, top: int, title: str, subtitle: str, route: str, month: date,
                     snap: Snapshot, now: datetime, highlight: set, cell_h: int):
     t, cfg = p.t, p.cfg
-    f_title = p.text((M, top), title, "bold", 30, t.text)
-    p.text((M + p.tw(title, f_title) + 14, top + 6), subtitle, "medium", 24, t.muted)
+    out = route == cfg.route_out
+    p.plane(M + 26, top + 19, 30, -28 if out else 28, t.accent)      # Abflug ↗ / Landung ↘
+    tx = M + 62
+    f_title = p.text((tx, top), title, "bold", 30, t.text)
+    p.text((tx + p.tw(title, f_title) + 14, top + 6), subtitle, "medium", 24, t.muted)
     wd_y = top + 46
     for i, wd in enumerate(WOCHENTAGE_KURZ):
         cx = M + i * (CELL_W + GAP) + CELL_W / 2
@@ -86,8 +89,9 @@ def _combo_card(p: Painter, top: int, combo: Combo | None, height: int = 160):
     left_end = W - M - right_w - 34
     for i, (label, fare) in enumerate(((T["outbound"], combo.outbound), (T["return"], combo.inbound))):
         y = top + 66 + i * 42
-        p.text((M + 24, y), label, "semibold", 21, t.muted)
-        p.text((M + 140, y - 1), f"{fmt_date_wd(fare.day)} · {fare.departure} Uhr", "semibold", 23, t.text)
+        p.plane(M + 42, y + 13, 20, -28 if i == 0 else 28, t.muted)
+        p.text((M + 66, y), label, "semibold", 21, t.muted)
+        p.text((M + 176, y - 1), f"{fmt_date_wd(fare.day)} · {fare.departure} Uhr", "semibold", 23, t.text)
         p.text((left_end, y - 2), fmt_price(fare.price), "bold", 25, price_color(fare.price, cfg, t), anchor="ra")
     rx = W - M - 24
     p.text((rx, top + 20), T["total"], "semibold", 20, t.muted, anchor="ra")

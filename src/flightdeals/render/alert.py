@@ -104,7 +104,9 @@ def _compare_card(p: Painter, box, alert: Alert, cfg: Config):
 def _leg_card(p: Painter, top: int, label: str, fare: Fare, cfg: Config):
     t = p.t
     p.rrect((M, top, W - M, top + 116), 18, fill=t.surface)
-    p.text((M + 24, top + 18), label.upper(), "bold", 20, t.accent)
+    out = fare.route == cfg.route_out
+    p.plane(M + 42, top + 29, 22, -28 if out else 28, t.accent)
+    p.text((M + 70, top + 18), label.upper(), "bold", 20, t.accent)
     p.text((M + 24, top + 48), f"{cfg.city(fare.origin)} → {cfg.city(fare.destination)}", "bold", 30, t.text)
     p.text((M + 24, top + 86), f"{fmt_date_wd(fare.day, long=True)} · {fare.departure}–{fare.arrival} Uhr",
            "medium", 21, t.muted)
