@@ -17,7 +17,7 @@ def future_fares(snap: Snapshot, route: str, now: datetime) -> list[Fare]:
 
 
 def best_combo(outs: list[Fare], rets: list[Fare], min_nights: int, max_nights: int,
-               out_month: date | None = None) -> Combo | None:
+               out_month: date | None = None, same_month: bool = False) -> Combo | None:
     """Günstigste Kombination. Der Rückflug darf im Folgemonat liegen.
     Rückflug muss nach dem Hinflug sein (mindestens min_nights Nächte)."""
     best = None
@@ -26,6 +26,8 @@ def best_combo(outs: list[Fare], rets: list[Fare], min_nights: int, max_nights: 
         if out_month and (o.day.year, o.day.month) != (out_month.year, out_month.month):
             continue
         for r in rets:
+            if same_month and (r.day.year, r.day.month) != (o.day.year, o.day.month):
+                continue
             nights = (r.day - o.day).days
             if nights < min_nights or nights > max_nights:
                 continue

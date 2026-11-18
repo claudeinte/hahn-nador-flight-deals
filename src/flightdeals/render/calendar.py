@@ -50,14 +50,14 @@ def _calendar_block(p: Painter, top: int, title: str, subtitle: str, route: str,
             y0 = grid_top + r * (cell_h + GAP)
             box = (x0, y0, x0 + CELL_W, y0 + cell_h)
             cx, cy = x0 + CELL_W / 2, y0 + cell_h / 2
-            price_size = 28 if cell_h >= 60 else 25
+            price_size = 28 if cell_h >= 60 else (25 if cell_h >= 52 else 22)
             state, fare = day_state(snap, route, day, now)
             if state == "price":
                 col = price_color(fare.price, cfg, t)
                 p.rrect(box, 10, fill=mix(t.surface, col, 0.16), outline=mix(t.surface, col, 0.45))
-                p.text((x0 + 7, y0 + 4), str(day.day), "semibold", 14, t.muted)
-                p.text((cx + 6, y0 + cell_h - 6), fmt_price(fare.price), "extrabold", price_size, col, anchor="ms",
-                       max_w=int(CELL_W - 22))
+                p.text((x0 + 7, y0 + 3), str(day.day), "semibold", 13, t.muted)
+                p.text((cx + 8, y0 + cell_h - 5), fmt_price(fare.price), "extrabold", price_size, col, anchor="ms",
+                       max_w=int(CELL_W - 30))
             elif state == "past":
                 p.rrect(box, 10, fill=mix(t.background, t.surface, 0.5))
                 p.text((x0 + 8, y0 + 5), str(day.day), "semibold", 15, t.grey)

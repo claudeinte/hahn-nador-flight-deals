@@ -34,6 +34,9 @@ max_valid_price = 1500.0
 [stay]
 min_nights = 3
 max_nights = 30
+# In den Monatsbildern: Hin- und Rückflug der Kombination im selben Monat (beide Tage sind im Bild markiert).
+# Für die Angebotsmeldung "GÜNSTIGER HIN- UND RÜCKFLUG" darf der Rückflug auch im Folgemonat liegen.
+calendar_combo_same_month = true
 
 [price_colors]
 green_below = 50      # Grün:   < 50 €

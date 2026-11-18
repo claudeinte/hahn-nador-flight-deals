@@ -168,3 +168,14 @@ def test_failed_month_never_used_for_alerts(cfg, tmp_path):
     h, s = _setup(tmp_path, {("HHN-NDR", d): 80.0}, now)
     snap = make_snapshot(now, {}, failed={("HHN-NDR", date(2027, 2, 1))})
     assert detect(snap, h, s, cfg, now) == []
+
+
+def test_calendar_combo_same_month_option(cfg):
+    now = berlin(2026, 11, 20, 9)
+    snap = make_snapshot(now, {("HHN-NDR", date(2026, 11, 24)): 20.0,
+                               ("NDR-HHN", date(2026, 11, 28)): 60.0,
+                               ("NDR-HHN", date(2026, 12, 5)): 10.0})
+    outs, rets = future_fares(snap, "HHN-NDR", now), future_fares(snap, "NDR-HHN", now)
+    assert best_combo(outs, rets, 3, 30, out_month=date(2026, 11, 1)).inbound.day == date(2026, 12, 5)
+    same = best_combo(outs, rets, 3, 30, out_month=date(2026, 11, 1), same_month=True)
+    assert same.inbound.day == date(2026, 11, 28)

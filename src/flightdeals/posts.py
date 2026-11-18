@@ -138,7 +138,8 @@ def build_calendar_post(cfg: Config, snap: Snapshot, now: datetime, kind: str, m
     d = out_dir or post_dir(cfg, now, kind)
     images, combos = [], {}
     for i, m in enumerate(months, 1):
-        combo = best_combo(outs, rets, st["min_nights"], st["max_nights"], out_month=m)
+        combo = best_combo(outs, rets, st["min_nights"], st["max_nights"], out_month=m,
+                           same_month=st.get("calendar_combo_same_month", True))
         if combo:
             verify_combo(snap, combo, cfg, now)
             combos[m] = combo
