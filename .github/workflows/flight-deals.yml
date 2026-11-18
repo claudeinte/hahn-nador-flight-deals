@@ -12,7 +12,7 @@ on:
       aktion:
         description: "Was soll passieren?"
         type: choice
-        options: [automatisch, tagesbeitrag-erzwingen, wochenbeitrag-erzwingen, demo]
+        options: [automatisch, tagesbeitrag-erzwingen, wochenbeitrag-erzwingen, top3-kombinationen, demo]
         default: automatisch
 
 permissions:
@@ -53,6 +53,7 @@ jobs:
           case "${{ inputs.aktion }}" in
             tagesbeitrag-erzwingen)  python -m flightdeals run --force daily ;;
             wochenbeitrag-erzwingen) python -m flightdeals run --force weekly ;;
+            top3-kombinationen)      python -m flightdeals top3 ;;
             demo)                    python -m flightdeals demo ;;
             *)                       python -m flightdeals run ;;
           esac

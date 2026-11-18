@@ -179,3 +179,33 @@ def test_calendar_combo_same_month_option(cfg):
     assert best_combo(outs, rets, 3, 30, out_month=date(2026, 11, 1)).inbound.day == date(2026, 12, 5)
     same = best_combo(outs, rets, 3, 30, out_month=date(2026, 11, 1), same_month=True)
     assert same.inbound.day == date(2026, 11, 28)
+
+
+def test_top3_categories_distinct_and_within_nights(cfg):
+    from flightdeals.analysis import top_combos
+    now = berlin(2026, 11, 20, 9)
+    snap = make_snapshot(now, {("HHN-NDR", date(2026, 12, 6)): 19.99, ("NDR-HHN", date(2026, 12, 15)): 18.99,
+                               ("HHN-NDR", date(2026, 12, 4)): 34.99, ("NDR-HHN", date(2026, 12, 8)): 26.79,
+                               ("NDR-HHN", date(2026, 12, 22)): 26.63, ("NDR-HHN", date(2027, 1, 2)): 90.0})
+    combos = top_combos(future_fares(snap, "HHN-NDR", now), future_fares(snap, "NDR-HHN", now),
+                        cfg["top3"]["categories"], [date(2026, 11, 1), date(2026, 12, 1)])
+    labels = [cat["label"] for cat, _ in combos]
+    assert labels == ["Günstigste Kombination", "Kurztrip", "Familienbesuch"]
+    pairs = [(c.outbound.day, c.inbound.day) for _, c in combos]
+    assert len(set(pairs)) == 3                                   # keine doppelte Kombination
+    for cat, c in combos:
+        assert cat["min_nights"] <= c.nights <= cat["max_nights"] and c.inbound.day > c.outbound.day
+    assert pairs[0] == (date(2026, 12, 6), date(2026, 12, 15))    # 38,98 € günstigste
+
+
+def test_all_image_texts_exist_in_font(cfg):
+    """Jedes Zeichen, das in Bildern vorkommt, muss in der Schrift vorhanden sein (keine leeren Kästchen)."""
+    from fontTools.ttLib import TTFont
+    from flightdeals.texts import ALERT_TITLES, MONATE, T, WOCHENTAGE
+    cmap = TTFont(str(cfg.fonts_dir / "Inter-ExtraBold.ttf")).getBestCmap()
+    texts = list(T.values()) + list(ALERT_TITLES.values()) + MONATE + WOCHENTAGE + [
+        cfg["page"]["name"], cfg["page"]["disclaimer"], cfg["page"]["badge"], cfg["page"]["booking_hint"],
+        cfg["fare"]["baggage_note"], "↔ → · – − × € % ",
+        *[c["label"] for c in cfg["top3"]["categories"]]]
+    missing = {ch for s in texts for ch in s if not ch.isspace() and ord(ch) not in cmap}
+    assert not missing, f"Zeichen fehlen in der Schrift: {missing}"

@@ -6,6 +6,7 @@
   python -m flightdeals run --force weekly  Wochenbeitrag (6 Monate) sofort erstellen
   python -m flightdeals demo                Echte Kalender (aktueller + nächster Monat) und je ein
                                             Beispielbild für jede Angebotsart (TESTDATEN)
+  python -m flightdeals top3                Beitrag "Top 3 Kombinationen" (aktueller + nächster Monat)
   python -m flightdeals publish <ordner>    Einen vorbereiteten Beitrag veröffentlichen (nur wenn freigegeben)
 """
 from __future__ import annotations
@@ -24,7 +25,7 @@ from .config import load_config
 from .facebook import publish, publishing_enabled
 from .fetch import fetch_all
 from .models import Alert
-from .posts import build_alert_post, build_calendar_post, calendar_months
+from .posts import build_alert_post, build_calendar_post, build_top3_post, calendar_months
 from .storage import History, State
 from .summary import write_summary
 
@@ -152,6 +153,7 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--force", choices=["daily", "weekly"], default=None)
     sub.add_parser("demo")
+    sub.add_parser("top3")
     pb = sub.add_parser("publish")
     pb.add_argument("post_dir", type=Path)
     ap.add_argument("--config", default=None)
@@ -161,6 +163,14 @@ def main(argv=None) -> int:
         return cmd_run(cfg, args.force)
     if args.cmd == "demo":
         return cmd_demo(cfg)
+    if args.cmd == "top3":
+        now = cfg.now()
+        snap = fetch_all(cfg, now)
+        if not snap.any_ok:
+            print("Preisabfrage fehlgeschlagen – nichts erstellt.")
+            return 1
+        print("Top 3:", build_top3_post(cfg, snap, now))
+        return 0
     if args.cmd == "publish":
         print(publish(args.post_dir, cfg))
         return 0

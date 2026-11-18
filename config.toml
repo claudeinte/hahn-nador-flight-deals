@@ -8,7 +8,7 @@ timezone = "Europe/Berlin"
 badge = "Unabhängige Infoseite"   # Etikett oben rechts in allen Bildern
 # Hinweis-Leiste unten in allen Bildern (Links sind in Bildern nicht klickbar → Verweis auf den Beitragstext)
 booking_hint = "Alle Flüge werden von Ryanair durchgeführt. Buchung nur auf ryanair.com – den Link findest du im Beitragstext."
-hashtags = "#Nador #FrankfurtHahn #Ryanair #GünstigFliegen #Marokko"
+hashtags = "#Nador #Rif #الناظور #MarokkanerInDeutschland #MRE #FlügeNachMarokko #Heimaturlaub #FrankfurtHahn"
 
 [route]
 origin = "HHN"
@@ -83,3 +83,19 @@ grey = "#4B5563"
 purple = "#A78BFA"
 teal = "#2DD4BF"
 test_banner = "#FACC15"
+
+[top3]
+# Beitrag "Top 3 Kombinationen": drei verschiedene Reisearten (Nächte in Nador)
+months = 2   # aktueller + nächster Monat (Hinflug); Rückflug darf danach liegen
+[[top3.categories]]
+label = "Günstigste Kombination"
+min_nights = 3
+max_nights = 30
+[[top3.categories]]
+label = "Kurztrip"
+min_nights = 3
+max_nights = 5
+[[top3.categories]]
+label = "Familienbesuch"
+min_nights = 14
+max_nights = 21

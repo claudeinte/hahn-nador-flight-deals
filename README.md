@@ -54,6 +54,7 @@ PYTHONPATH=src .venv/bin/python -m flightdeals run                 # ejecución 
 PYTHONPATH=src .venv/bin/python -m flightdeals run --force daily   # forzar publicación diaria
 PYTHONPATH=src .venv/bin/python -m flightdeals run --force weekly  # forzar publicación de 6 meses
 PYTHONPATH=src .venv/bin/python -m flightdeals demo                # calendarios reales + 5 ofertas de ejemplo
+PYTHONPATH=src .venv/bin/python -m flightdeals top3                # publicación "Top 3 Kombinationen"
 .venv/bin/python -m pytest -q                                      # pruebas
 ```
 
@@ -78,6 +79,20 @@ PYTHONPATH=src .venv/bin/python -m flightdeals demo                # calendarios
 | Durante el día | Solo si hay ofertas nuevas (agrupadas, máximo 3 publicaciones extra al día) |
 
 El cambio de horario de verano e invierno se gestiona automáticamente.
+
+### Top 3 Kombinationen
+
+Publicación con las tres mejores combinaciones de ida y vuelta (salida en el mes actual y el siguiente),
+cada una para un tipo de viaje distinto (configurable en `[top3]` de `config.toml`):
+
+| Categoría | Noches |
+|---|---|
+| Günstigste Kombination | 3–30 |
+| Familienbesuch | 14–21 |
+| Kurztrip | 3–5 |
+
+Nunca se repite la misma combinación y las medallas 🥇🥈🥉 se ordenan por precio total. Se genera a
+mano con `python -m flightdeals top3` o desde GitHub Actions (opción `top3-kombinationen`).
 
 ### Ofertas (`alerts.py`)
 

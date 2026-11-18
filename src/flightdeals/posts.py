@@ -11,16 +11,18 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
-from .analysis import best_combo, future_fares
+from .analysis import best_combo, future_fares, top_combos
 from .config import Config
 from .fetch import add_months
 from .models import Alert, Combo, Snapshot
 from .render.alert import render_alert
 from .render.calendar import render_month
+from .render.top3 import render_top3
 from .texts import (ALERT_TITLES, T, booking_link, fmt_date_wd, fmt_datetime, fmt_nights, fmt_pct,
                     fmt_price, month_name, round_trip_link)
 
-TYPE_DIR = {"taeglich": "taeglicher-kalender", "woechentlich": "wochen-kalender", "angebot": "angebote"}
+TYPE_DIR = {"taeglich": "taeglicher-kalender", "woechentlich": "wochen-kalender", "angebot": "angebote",
+            "top3": "top3-kombinationen"}
 
 
 class VerificationError(Exception):
@@ -179,4 +181,51 @@ def build_alert_post(cfg: Config, snap: Snapshot, alerts: list[Alert], history, 
             links.append(booking_link(a.fare.origin, a.fare.destination, a.fare.day))
     _write(d, "angebot", alerts_text(cfg, snap, alerts), images,
            {"angebote": [a.kind for a in alerts], "links": links}, test)
+    return d
+
+
+# ---------------------------------------------------------------- Top 3 ---------
+MEDAL_EMOJI = ["🥇", "🥈", "🥉"]
+
+
+def top3_text(cfg: Config, snap: Snapshot, months: list[date], combos: list) -> str:
+    r = cfg["route"]
+    names = " & ".join(month_name(m.year, m.month).split()[0] for m in months) + f" {months[-1].year}"
+    if not combos:
+        return f"🏆 Top 3 Kombinationen {r['origin_name']} ⇄ {r['destination_name']} ({names})\n\n{T['no_combo']}"
+    cheapest = min(c.total for _, c in combos)
+    parts = [f"🏆 Top 3 Kombinationen {r['origin_name']} ⇄ {r['destination_name']} – Abflug im {names}",
+             f"Hin und zurück schon ab {fmt_price(cheapest)} pro Person 👇", ""]
+    for i, (cat, c) in enumerate(combos):
+        parts.append(f"{MEDAL_EMOJI[i]} {cat['label']} – {fmt_nights(c.nights)} in {r['destination_name']}")
+        parts.append(f"🛫 {T['outbound']}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · {fmt_price(c.outbound.price)}")
+        parts.append(f"🛬 {T['return']}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · {fmt_price(c.inbound.price)}")
+        parts.append(f"💶 {T['total']}: {fmt_price(c.total)} pro Person")
+        parts.append(f"🔗 {round_trip_link(r['origin'], r['destination'], c.outbound.day, c.inbound.day)}")
+        parts.append("")
+    parts.append("👉 Buchung nur über die offizielle Ryanair-Seite (Links oben).\n")
+    parts.append(_footer_text(cfg, snap))
+    return "\n".join(parts)
+
+
+def build_top3_post(cfg: Config, snap: Snapshot, now: datetime, months: list[date] | None = None,
+                    out_dir: Path | None = None) -> Path:
+    t3 = cfg["top3"]
+    months = months or calendar_months(now, t3["months"])
+    combos = top_combos(future_fares(snap, cfg.route_out, now), future_fares(snap, cfg.route_ret, now),
+                        t3["categories"], months)
+    combos.sort(key=lambda x: (x[1].total, x[1].outbound.day))   # Medaillen nach Preis: 🥇 günstigste zuerst
+    for _, c in combos:                                   # nur echte, aktuell bestätigte Preise
+        verify_fare(snap, c.outbound, now)
+        verify_fare(snap, c.inbound, now)
+        if c.inbound.day <= c.outbound.day:
+            raise VerificationError("Rückflug liegt nicht nach dem Hinflug")
+    d = out_dir or post_dir(cfg, now, "top3")
+    name = f"01_top3_{months[0].strftime('%Y-%m')}_{months[-1].strftime('%Y-%m')}.png"
+    render_top3(cfg, combos, months, snap.fetched_at).save(d / name)
+    links = [round_trip_link(cfg["route"]["origin"], cfg["route"]["destination"], c.outbound.day, c.inbound.day)
+             for _, c in combos]
+    _write(d, "top3", top3_text(cfg, snap, months, combos), [name],
+           {"kombinationen": [{"kategorie": cat["label"], "hin": str(c.outbound.day), "rueck": str(c.inbound.day),
+                               "gesamt": c.total} for cat, c in combos], "links": links}, False)
     return d

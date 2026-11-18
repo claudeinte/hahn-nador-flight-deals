@@ -35,3 +35,29 @@ def best_combo(outs: list[Fare], rets: list[Fare], min_nights: int, max_nights: 
             if best is None or (c.total, o.day, r.day) < (best.total, best.outbound.day, best.inbound.day):
                 best = c
     return best
+
+
+def top_combos(outs: list[Fare], rets: list[Fare], categories: list[dict],
+               out_months: list[date]) -> list[tuple[dict, Combo]]:
+    """Beste Kombination je Kategorie (z. B. günstigste, Kurztrip, Familienbesuch).
+    Hinflug in einem der out_months; keine Kombination wird zweimal verwendet."""
+    allowed = {(m.year, m.month) for m in out_months}
+    outs = [o for o in outs if (o.day.year, o.day.month) in allowed]
+    used: set = set()
+    result = []
+    for cat in categories:
+        best = None
+        for o in outs:
+            for r in rets:
+                nights = (r.day - o.day).days
+                if nights < max(1, cat["min_nights"]) or nights > cat["max_nights"]:
+                    continue
+                if (o.day, r.day) in used:
+                    continue
+                c = Combo(outbound=o, inbound=r)
+                if best is None or (c.total, o.day, r.day) < (best.total, best.outbound.day, best.inbound.day):
+                    best = c
+        if best:
+            used.add((best.outbound.day, best.inbound.day))
+            result.append((cat, best))
+    return result
