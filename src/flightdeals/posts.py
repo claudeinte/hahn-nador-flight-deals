@@ -59,31 +59,54 @@ def verify_combo(snap: Snapshot, combo: Combo, cfg: Config, now: datetime):
 
 
 # ---------------------------------------------------------------- Texte ---------
+def flag_emoji(country: str) -> str:
+    """'DE' -> 🇩🇪 (Facebook zeigt Flaggen-Emojis im Text an)."""
+    return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in country.upper())
+
+
+def _flags(cfg: Config) -> tuple[str, str]:
+    r = cfg["route"]
+    return flag_emoji(r["origin_country"]), flag_emoji(r["destination_country"])
+
+
 def _footer_text(cfg: Config, snap: Snapshot) -> str:
-    return (f"✈️ Alle Flüge werden von Ryanair durchgeführt. Wir verkaufen keine Tickets – gebucht wird "
-            f"ausschließlich auf ryanair.com.\n"
-            f"🧳 {cfg['fare']['baggage_note']}\n"
-            f"🕒 {T['updated']}: {fmt_datetime(snap.fetched_at)} · {T['may_change']}\n\n"
-            f"ℹ️ {cfg['page']['disclaimer']}\n\n{cfg['page']['hashtags']}")
+    """Gemeinsamer Abschluss aller Beiträge – jede Information nur einmal."""
+    return (f"🧳 {cfg['fare']['baggage_note']}\n"
+            f"🕒 Stand: {fmt_datetime(snap.fetched_at)}\n\n"
+            f"ℹ️ {cfg['page']['disclaimer']} Wir verkaufen keine Tickets – gebucht wird ausschließlich "
+            f"auf ryanair.com.\n\n{cfg['page']['hashtags']}")
 
 
 def combo_lines(cfg: Config, c: Combo) -> str:
     r = cfg["route"]
-    return (f"🛫 {T['outbound']}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · {fmt_price(c.outbound.price)}\n"
-            f"🛬 {T['return']}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · {fmt_price(c.inbound.price)}\n"
-            f"💶 {T['total']}: {fmt_price(c.total)} pro Person · "
-            f"{fmt_nights(c.nights)} in {r['destination_name']}\n"
+    fo, fd = _flags(cfg)
+    return (f"🛫 {T['outbound']} {fo} → {fd}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · "
+            f"{fmt_price(c.outbound.price)}\n"
+            f"🛬 {T['return']} {fd} → {fo}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · "
+            f"{fmt_price(c.inbound.price)}\n"
+            f"💶 {T['total']}: {fmt_price(c.total)} pro Person · {fmt_nights(c.nights)} in {r['destination_name']}\n\n"
             f"👉 Buchung nur über die offizielle Ryanair-Seite:\n"
             f"🔗 {round_trip_link(r['origin'], r['destination'], c.outbound.day, c.inbound.day)}")
 
 
 def calendar_text(cfg: Config, snap: Snapshot, months: list[date], combos: dict) -> str:
+    """Erste Zeile = das Wichtigste (Monat, Strecke mit Flaggen, Preis), denn Facebook zeigt
+    vor "Mehr anzeigen" nur 1–2 Zeilen."""
     r = cfg["route"]
-    names = " · ".join(month_name(m.year, m.month) for m in months)
-    parts = [f"✈️ {T['calendar']} {r['origin_name']} ⇄ {r['destination_name']} ({r['airline']})", names, ""]
+    fo, fd = _flags(cfg)
+    names = " & ".join(month_name(m.year, m.month) for m in months) if len(months) <= 2 else \
+        f"{month_name(months[0].year, months[0].month)} – {month_name(months[-1].year, months[-1].month)}"
+    route = f"{fo} {r['origin_name']} ✈️ {fd} {r['destination_name']}"
+    if combos:
+        cheapest = min(c.total for c in combos.values())
+        parts = [f"📅 {names}: {route} – hin & zurück ab {fmt_price(cheapest)} pro Person!",
+                 f"Alle {r['airline']}-Preise im Kalender 👇", ""]
+    else:
+        parts = [f"📅 {names}: {route}", f"Alle {r['airline']}-Preise im Kalender 👇", ""]
     for m in months:
         c = combos.get(m)
-        parts.append(f"💚 {T['best_combo']} – {month_name(m.year, m.month)}:")
+        if len(months) > 1:
+            parts.append(f"💚 {T['best_combo']} – {month_name(m.year, m.month)}:")
         parts.append(combo_lines(cfg, c) if c else T["no_combo"])
         parts.append("")
     if snap.errors:

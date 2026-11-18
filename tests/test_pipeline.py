@@ -33,6 +33,7 @@ def test_calendar_images_are_1080x1350_and_german(cfg):
     for i in imgs:
         assert Image.open(i).size == (1080, 1350)
     text = (d / "beitrag.txt").read_text()
+    assert text.startswith("📅 November 2026 & Dezember 2026: 🇩🇪 Frankfurt-Hahn ✈️ 🇲🇦 Nador")
     assert "Günstigster Hin- und Rückflug" in text and "38,98 €" in text
     assert "Keine Verbindung zu Ryanair" in text and "ryanair.com/de/de" in text
     assert "Basic-Tarif" in text
