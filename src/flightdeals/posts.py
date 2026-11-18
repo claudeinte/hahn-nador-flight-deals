@@ -58,7 +58,9 @@ def verify_combo(snap: Snapshot, combo: Combo, cfg: Config, now: datetime):
 
 # ---------------------------------------------------------------- Texte ---------
 def _footer_text(cfg: Config, snap: Snapshot) -> str:
-    return (f"🧳 {cfg['fare']['baggage_note']}\n"
+    return (f"✈️ Alle Flüge werden von Ryanair durchgeführt. Wir verkaufen keine Tickets – gebucht wird "
+            f"ausschließlich auf ryanair.com.\n"
+            f"🧳 {cfg['fare']['baggage_note']}\n"
             f"🕒 {T['updated']}: {fmt_datetime(snap.fetched_at)} · {T['may_change']}\n\n"
             f"ℹ️ {cfg['page']['disclaimer']}\n\n{cfg['page']['hashtags']}")
 
@@ -69,6 +71,7 @@ def combo_lines(cfg: Config, c: Combo) -> str:
             f"🛬 {T['return']}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · {fmt_price(c.inbound.price)}\n"
             f"💶 {T['total']}: {fmt_price(c.total)} pro Person · "
             f"{fmt_nights(c.nights)} in {r['destination_name']}\n"
+            f"👉 Buchung nur über die offizielle Ryanair-Seite:\n"
             f"🔗 {round_trip_link(r['origin'], r['destination'], c.outbound.day, c.inbound.day)}")
 
 
@@ -104,7 +107,7 @@ def alert_line(cfg: Config, a: Alert) -> str:
     line += " pro Person"
     if a.also:
         line += "\n⭐ Außerdem: " + ", ".join(ALERT_TITLES[k] for k in a.also)
-    line += f"\n🔗 {booking_link(f.origin, f.destination, f.day)}"
+    line += f"\n👉 Buchung nur über die offizielle Ryanair-Seite:\n🔗 {booking_link(f.origin, f.destination, f.day)}"
     return line
 
 

@@ -114,6 +114,24 @@ class Painter:
             y += size + 7
         return top
 
+    def info_strip(self, bottom: int) -> int:
+        """Hervorgehobene Hinweis-Leiste (Ryanair / Buchung über Link im Beitrag). Gibt die Oberkante zurück."""
+        t = self.t
+        text = self.cfg["page"]["booking_hint"]
+        f = self.font("semibold", 19)
+        lines = self.wrap(text, f, W - 2 * M - 86)
+        h = 26 + len(lines) * 27
+        top = bottom - h
+        self.rrect((M, top, W - M, bottom), 14, fill=mix(t.background, t.accent, 0.14), outline=mix(t.background, t.accent, 0.5))
+        cx, cy = M + 32, top + h / 2                     # Info-Symbol (Kreis mit "i")
+        self.d.ellipse((cx - 15, cy - 15, cx + 15, cy + 15), outline=t.accent, width=3)
+        self.d.text((cx, cy + 1), "i", font=self.font("extrabold", 20), fill=t.accent, anchor="mm")
+        y = top + 13
+        for line in lines:
+            self.d.text((M + 62, y), line, font=f, fill=t.text)
+            y += 27
+        return top
+
     def test_banner(self):
         t = self.t
         self.d.rectangle((0, 0, W, 22), fill=t.test_banner)

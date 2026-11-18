@@ -144,8 +144,10 @@ def render_month(cfg: Config, month: date, snap: Snapshot, combo: Combo | None, 
     f_foot = p.font("medium", 16)
     n_foot = sum(len(p.wrap(txt, f_foot, W - 2 * M)) for txt, _ in footer_lines)
     footer_top = H - 18 - n_foot * (16 + 7)
+    strip_bottom = footer_top - 10
+    strip_top = p.info_strip(strip_bottom)                 # Hinweis: Ryanair / Buchung über Link
     legend_h = _legend(p, 0, draw=False)                   # Höhe der Legende (1 oder 2 Zeilen)
-    legend_top = footer_top - 12 - legend_h
+    legend_top = strip_top - 12 - legend_h
     combo_h = 160
     combo_top = legend_top - 14 - combo_h
 
@@ -163,7 +165,7 @@ def render_month(cfg: Config, month: date, snap: Snapshot, combo: Combo | None, 
                     cfg.route_ret, month, snap, now, hl_ret, cell_h)
     combo_top = max(combo_top, top2 + real_block + 18)
     _combo_card(p, combo_top, combo, combo_h)
-    _legend(p, combo_top + combo_h + 14)
+    _legend(p, legend_top)
     p.footer(footer_lines, size=16, bottom=H - 18)
     if test:
         p.test_banner()

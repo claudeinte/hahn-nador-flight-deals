@@ -179,9 +179,10 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
 
     footer_top = p.footer([
         (cfg["fare"]["baggage_note"], t.muted),
-        (f"{T['check_book']} · {T['updated']}: {fmt_datetime(updated)}", t.muted),
+        (f"{T['updated']}: {fmt_datetime(updated)} · {T['may_change']}", t.muted),
         (cfg["page"]["disclaimer"], t.grey),
     ], size=17, bottom=H - 22)
+    footer_top = p.info_strip(footer_top - 12)
     box = (M, y, W - M, max(y + 260, footer_top - 26))
     points = sum(1 for _, _, s in series for _, pr in s if pr is not None)
     if points < 2 and alert.fare and alert.ref.get("month_avg"):
