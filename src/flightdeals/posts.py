@@ -218,7 +218,9 @@ def top3_text(cfg: Config, snap: Snapshot, months: list[date], combos: list) -> 
     r = cfg["route"]
     names = " & ".join(month_name(m.year, m.month).split()[0] for m in months) + f" {months[-1].year}"
     if not combos:
-        return f"🏆 Top 3 Kombinationen {r['origin_name']} ⇄ {r['destination_name']} ({names})\n\n{T['no_combo']}"
+        fo, fd = _flags(cfg)
+        return (f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']}\n\n"
+                f"{T['no_combo']}")
     cheapest = min(c.total for _, c in combos)
     fo, fd = _flags(cfg)
     parts = [f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']} – "
