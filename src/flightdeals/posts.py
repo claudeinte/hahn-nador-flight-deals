@@ -121,7 +121,10 @@ def alert_line(cfg: Config, a: Alert) -> str:
     if a.combo:
         return f"🔥 {title}\n{combo_lines(cfg, a.combo)}"
     f = a.fare
-    line = (f"🔥 {title}: {cfg.city(f.origin)} → {cfg.city(f.destination)}\n"
+    r = cfg["route"]
+    country = {r["origin"]: r["origin_country"], r["destination"]: r["destination_country"]}
+    line = (f"🔥 {title}: {flag_emoji(country[f.origin])} {cfg.city(f.origin)} → "
+            f"{flag_emoji(country[f.destination])} {cfg.city(f.destination)}\n"
             f"📅 {fmt_date_wd(f.day)} · {f.departure} Uhr\n💶 ")
     if a.old_price:
         line += f"Vorher {fmt_price(a.old_price)} → jetzt {fmt_price(f.price)}"
@@ -217,12 +220,15 @@ def top3_text(cfg: Config, snap: Snapshot, months: list[date], combos: list) -> 
     if not combos:
         return f"🏆 Top 3 Kombinationen {r['origin_name']} ⇄ {r['destination_name']} ({names})\n\n{T['no_combo']}"
     cheapest = min(c.total for _, c in combos)
-    parts = [f"🏆 Top 3 Kombinationen {r['origin_name']} ⇄ {r['destination_name']} – Abflug im {names}",
-             f"Hin und zurück schon ab {fmt_price(cheapest)} pro Person 👇", ""]
+    fo, fd = _flags(cfg)
+    parts = [f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']} – "
+             f"hin & zurück ab {fmt_price(cheapest)} pro Person!", "Die besten Termine im Bild 👇", ""]
     for i, (cat, c) in enumerate(combos):
         parts.append(f"{MEDAL_EMOJI[i]} {cat['label']} – {fmt_nights(c.nights)} in {r['destination_name']}")
-        parts.append(f"🛫 {T['outbound']}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · {fmt_price(c.outbound.price)}")
-        parts.append(f"🛬 {T['return']}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · {fmt_price(c.inbound.price)}")
+        parts.append(f"🛫 {T['outbound']} {fo} → {fd}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · "
+                     f"{fmt_price(c.outbound.price)}")
+        parts.append(f"🛬 {T['return']} {fd} → {fo}: {fmt_date_wd(c.inbound.day)} · {c.inbound.departure} Uhr · "
+                     f"{fmt_price(c.inbound.price)}")
         parts.append(f"💶 {T['total']}: {fmt_price(c.total)} pro Person")
         parts.append(f"🔗 {round_trip_link(r['origin'], r['destination'], c.outbound.day, c.inbound.day)}")
         parts.append("")
