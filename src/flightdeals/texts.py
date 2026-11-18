@@ -54,6 +54,11 @@ def fmt_date_wd(d: date, long: bool = False) -> str:
     return f"{wd}, {fmt_date(d)}"
 
 
+def fmt_date_wd_short(d: date) -> str:
+    """'Di, 24.11.' – kurz, für Bilder mit wenig Platz (Jahr steht im Titel)."""
+    return f"{WOCHENTAGE_KURZ[d.weekday()]}, {d.strftime('%d.%m.')}"
+
+
 def fmt_datetime(dt: datetime) -> str:
     return f"{dt.strftime('%d.%m.%Y')}, {dt.strftime('%H:%M')} Uhr"
 

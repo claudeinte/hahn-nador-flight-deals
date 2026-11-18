@@ -162,6 +162,19 @@ class Painter:
         self.d = ImageDraw.Draw(self.img)
         return w
 
+    def flag_pair(self, route: str, x: float, y: float, h: int = 18) -> int:
+        """Kleine Flaggen 'von → nach' (z. B. 🇩🇪→🇲🇦) für eine Strecke wie 'HHN-NDR'. Gibt die Breite zurück."""
+        r = self.cfg["route"]
+        country = {r["origin"]: r["origin_country"], r["destination"]: r["destination_country"]}
+        o, d = route.split("-")
+        x0 = x
+        x += self.flag(country[o], x, y, h) + 5
+        f = self.font("bold", int(h * 1.05))
+        self.d.text((x, y + h / 2), "→", font=f, fill=self.t.muted, anchor="lm")
+        x += self.tw("→", f) + 5
+        x += self.flag(country[d], x, y, h)
+        return int(x - x0)
+
     def info_strip(self, bottom: int) -> int:
         """Hervorgehobene Hinweis-Leiste (Ryanair / Buchung über Link im Beitrag). Gibt die Oberkante zurück."""
         t = self.t

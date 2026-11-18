@@ -7,7 +7,7 @@ from datetime import date, datetime
 from ..analysis import departure_dt
 from ..config import Config
 from ..models import Combo, Snapshot
-from ..texts import T, WOCHENTAGE_KURZ, fmt_date_wd, fmt_datetime, fmt_nights, fmt_price, month_name
+from ..texts import T, WOCHENTAGE_KURZ, fmt_date_wd, fmt_date_wd_short, fmt_datetime, fmt_nights, fmt_price, month_name
 from .common import H, M, W, Painter, mix, price_color
 
 GAP = 6
@@ -112,8 +112,9 @@ def _combo_card(p: Painter, top: int, combo: Combo | None, height: int = 160):
     for i, (label, fare) in enumerate(((T["outbound"], combo.outbound), (T["return"], combo.inbound))):
         y = top + 66 + i * 42
         p.plane(M + 42, y + 13, 20, -28 if i == 0 else 28, t.accent)
-        p.text((M + 66, y), label, "semibold", 21, t.muted)
-        p.text((M + 176, y - 1), f"{fmt_date_wd(fare.day)} · {fare.departure} Uhr", "semibold", 23, t.text)
+        f_l = p.text((M + 66, y), label, "semibold", 21, t.muted)
+        p.flag_pair(fare.route, M + 66 + p.tw("Rückflug", f_l) + 12, y + 4, 17)
+        p.text((M + 262, y - 1), f"{fmt_date_wd_short(fare.day)} · {fare.departure} Uhr", "semibold", 23, t.text)
         p.text((left_end, y - 2), fmt_price(fare.price), "bold", 25, price_color(fare.price, cfg, t), anchor="ra")
     rx = W - M - 24
     p.text((rx, top + 20), T["total"], "semibold", 20, t.muted, anchor="ra")

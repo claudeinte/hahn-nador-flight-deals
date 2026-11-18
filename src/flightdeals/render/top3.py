@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from ..config import Config
 from ..models import Combo
-from ..texts import T, fmt_date_wd, fmt_datetime, fmt_nights, fmt_price, month_name
+from ..texts import T, fmt_date_wd_short, fmt_datetime, fmt_nights, fmt_price, month_name
 from .common import H, M, W, Painter, hex2rgb, mix, price_color
 
 MEDALS = [hex2rgb("#F5C542"), hex2rgb("#C9D1DC"), hex2rgb("#D08B4E")]   # Gold, Silber, Bronze
@@ -32,8 +32,9 @@ def _card(p: Painter, top: int, h: int, rank: int, cat: dict, c: Combo, cfg: Con
     for i, fare in enumerate((c.outbound, c.inbound)):
         y = top + 106 + i * 44
         p.plane(M + 46, y + 14, 19, -28 if i == 0 else 28, t.accent)
-        p.text((M + 72, y), T["outbound"] if i == 0 else T["return"], "semibold", 22, t.muted)
-        p.text((M + 200, y - 1), f"{fmt_date_wd(fare.day)} · {fare.departure} Uhr", "semibold", 24, t.text)
+        f_l = p.text((M + 72, y), T["outbound"] if i == 0 else T["return"], "semibold", 22, t.muted)
+        p.flag_pair(fare.route, M + 72 + p.tw("Rückflug", f_l) + 12, y + 4, 18)
+        p.text((M + 272, y - 1), f"{fmt_date_wd_short(fare.day)} · {fare.departure} Uhr", "semibold", 24, t.text)
         p.text((W - M - 290, y - 1), fmt_price(fare.price), "bold", 24, price_color(fare.price, cfg, t), anchor="ra")
 
     rx = W - M - 26

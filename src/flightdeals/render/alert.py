@@ -106,7 +106,8 @@ def _leg_card(p: Painter, top: int, label: str, fare: Fare, cfg: Config):
     p.rrect((M, top, W - M, top + 116), 18, fill=t.surface)
     out = fare.route == cfg.route_out
     p.plane(M + 42, top + 29, 22, -28 if out else 28, t.accent)
-    p.text((M + 70, top + 18), label.upper(), "bold", 20, t.accent)
+    f_l = p.text((M + 70, top + 18), label.upper(), "bold", 20, t.accent)
+    p.flag_pair(fare.route, M + 70 + p.tw(label.upper(), f_l) + 12, top + 20, 17)
     p.text((M + 24, top + 48), f"{cfg.city(fare.origin)} → {cfg.city(fare.destination)}", "bold", 30, t.text)
     p.text((M + 24, top + 86), f"{fmt_date_wd(fare.day, long=True)} · {fare.departure}–{fare.arrival} Uhr",
            "medium", 21, t.muted)
