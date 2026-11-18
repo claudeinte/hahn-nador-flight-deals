@@ -138,6 +138,30 @@ class Painter:
         self.img.paste(layer, (int(cx - size), int(cy - size)), layer)
         self.d = ImageDraw.Draw(self.img)
 
+    def flag(self, country: str, x: float, y: float, h: int) -> int:
+        """Zeichnet eine kleine Flagge (DE oder MA) mit Oberkante y. Gibt die Breite zurück."""
+        k = 4
+        w = int(h * (5 / 3 if country == "DE" else 3 / 2))
+        layer = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+        d = ImageDraw.Draw(layer)
+        W_, H_ = w * k, h * k
+        if country == "DE":
+            for i, col in enumerate(((0, 0, 0), (221, 0, 0), (255, 206, 0))):
+                d.rectangle((0, i * H_ / 3, W_, (i + 1) * H_ / 3), fill=col)
+        else:  # MA: rot mit grünem Pentagramm
+            d.rectangle((0, 0, W_, H_), fill=(193, 39, 45))
+            cx, cy, r = W_ / 2, H_ / 2, H_ * 0.30
+            pts = [(cx + r * math.sin(math.radians(i * 72)), cy - r * math.cos(math.radians(i * 72))) for i in range(5)]
+            for i in range(5):
+                d.line((pts[i], pts[(i + 2) % 5]), fill=(0, 98, 51), width=max(3, int(H_ * 0.07)))
+        mask = Image.new("L", layer.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, W_ - 1, H_ - 1), radius=3 * k, fill=255)
+        layer.putalpha(mask)
+        layer = layer.resize((w, h), Image.LANCZOS)
+        self.img.paste(layer, (int(x), int(y)), layer)
+        self.d = ImageDraw.Draw(self.img)
+        return w
+
     def info_strip(self, bottom: int) -> int:
         """Hervorgehobene Hinweis-Leiste (Ryanair / Buchung über Link im Beitrag). Gibt die Oberkante zurück."""
         t = self.t

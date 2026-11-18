@@ -7,7 +7,7 @@ disclaimer = "Unabhängige Informationsseite. Keine Verbindung zu Ryanair. Preis
 timezone = "Europe/Berlin"
 badge = "Unabhängige Infoseite"   # Etikett oben rechts in allen Bildern
 # Hinweis-Leiste unten in allen Bildern (Links sind in Bildern nicht klickbar → Verweis auf den Beitragstext)
-booking_hint = "Alle Flüge werden von Ryanair durchgeführt. Buchung nur auf ryanair.com – den Link findest du im Beitragstext."
+booking_hint = "Alle Flüge werden von Ryanair durchgeführt. Buchung nur auf ryanair.com – Link im Beitragstext."
 hashtags = "#Nador #Rif #الناظور #MarokkanerInDeutschland #MRE #FlügeNachMarokko #Heimaturlaub #FrankfurtHahn"
 
 [route]
@@ -15,6 +15,8 @@ origin = "HHN"
 destination = "NDR"
 origin_name = "Frankfurt-Hahn"
 destination_name = "Nador"
+origin_country = "DE"        # Flaggen in den Bildern
+destination_country = "MA"
 airline = "Ryanair"
 currency = "EUR"
 months_ahead = 6            # aktueller Monat + 5 weitere
@@ -73,13 +75,13 @@ surface = "#161B24"
 surface_2 = "#1E2531"
 border = "#2A3342"
 text = "#F2F5F9"
-muted = "#8E99AB"
+muted = "#AEB8C7"           # Sekundärtexte (heller = besser lesbar auf dem Handy)
 accent = "#4C9AFF"
 green = "#22C55E"
 yellow = "#FACC15"
 orange = "#FB923C"
 red = "#F05252"
-grey = "#4B5563"
+grey = "#6B7484"
 purple = "#A78BFA"
 teal = "#2DD4BF"
 test_banner = "#FACC15"
