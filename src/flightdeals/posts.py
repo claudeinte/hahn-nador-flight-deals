@@ -18,7 +18,7 @@ from .models import Alert, Combo, Snapshot
 from .render.alert import render_alert
 from .render.calendar import render_month
 from .render.top3 import render_top3
-from .texts import (ALERT_TITLES, T, booking_link, fmt_date_wd, fmt_datetime, fmt_nights, fmt_pct,
+from .texts import (ALERT_TITLES, T, booking_link, edition_line, fmt_checked, fmt_date_wd, fmt_datetime, fmt_nights, fmt_pct,
                     fmt_price, month_name, round_trip_link)
 
 TYPE_DIR = {"taeglich": "taeglicher-kalender", "woechentlich": "wochen-kalender", "angebot": "angebote",
@@ -77,6 +77,10 @@ def _footer_text(cfg: Config, snap: Snapshot) -> str:
             f"auf ryanair.com.\n\n{cfg['page']['hashtags']}")
 
 
+def _checked_line(snap: Snapshot) -> str:
+    return f"🕒 Preise {fmt_checked(snap.fetched_at)} – können sich jederzeit ändern."
+
+
 def combo_lines(cfg: Config, c: Combo) -> str:
     r = cfg["route"]
     fo, fd = _flags(cfg)
@@ -99,11 +103,12 @@ def calendar_text(cfg: Config, snap: Snapshot, months: list[date], combos: dict)
     route = f"{fo} {r['origin_name']} ✈️ {fd} {r['destination_name']}"
     if combos:
         cheapest = min(c.total for c in combos.values())
-        parts = [f"📅 {names}: {route} – hin & zurück ab {fmt_price(cheapest)} pro Person!",
-                 f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Alle {r['airline']}-Preise im Kalender 👇", ""]
+        parts = [edition_line(snap.fetched_at),
+                 f"📅 {names}: {route} – hin & zurück ab {fmt_price(cheapest)} pro Person!",
+                 _checked_line(snap), f"Alle {r['airline']}-Preise im Kalender 👇", ""]
     else:
-        parts = [f"📅 {names}: {route}",
-                 f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Alle {r['airline']}-Preise im Kalender 👇", ""]
+        parts = [edition_line(snap.fetched_at), f"📅 {names}: {route}",
+                 _checked_line(snap), f"Alle {r['airline']}-Preise im Kalender 👇", ""]
     for m in months:
         c = combos.get(m)
         if len(months) > 1:
@@ -141,8 +146,17 @@ def alert_line(cfg: Config, a: Alert) -> str:
 
 
 def alerts_text(cfg: Config, snap: Snapshot, alerts: list[Alert]) -> str:
-    head = ("🚨 Neue Angebote Frankfurt-Hahn ⇄ Nador" if len(alerts) > 1 else "🚨 Neues Angebot Frankfurt-Hahn ⇄ Nador") \
-        + f"\n🕒 Stand: {fmt_datetime(snap.fetched_at)}"
+    r = cfg["route"]
+    fo, fd = _flags(cfg)
+    route = f"{fo} {r['origin_name']} ✈️ {fd} {r['destination_name']}"
+    lowest = min(a.new_price for a in alerts)
+    if len(alerts) == 1:
+        a = alerts[0]
+        hook = f"🚨 {ALERT_TITLES[a.kind]}: {route} für nur {fmt_price(a.new_price)}!"
+    else:
+        best_pct = max((a.saving_pct or 0) for a in alerts)
+        hook = f"🚨 Neue Angebote: {route} ab {fmt_price(lowest)}" + (f" – bis zu −{best_pct:.0f} %!" if best_pct else "!")
+    head = f"{edition_line(snap.fetched_at)}\n{hook}\n{_checked_line(snap)}"
     body = "\n\n".join(alert_line(cfg, a) for a in alerts)
     return f"{head}\n\n{body}\n\n{_footer_text(cfg, snap)}"
 
@@ -225,9 +239,10 @@ def top3_text(cfg: Config, snap: Snapshot, months: list[date], combos: list) -> 
                 f"{T['no_combo']}")
     cheapest = min(c.total for _, c in combos)
     fo, fd = _flags(cfg)
-    parts = [f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']} – "
+    parts = [edition_line(snap.fetched_at),
+             f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']} – "
              f"hin & zurück ab {fmt_price(cheapest)} pro Person!",
-             f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Die besten Termine im Bild 👇", ""]
+             _checked_line(snap), "Die besten Termine im Bild 👇", ""]
     for i, (cat, c) in enumerate(combos):
         parts.append(f"{MEDAL_EMOJI[i]} {cat['label']} – {fmt_nights(c.nights)} in {r['destination_name']}")
         parts.append(f"🛫 {T['outbound']} {fo} → {fd}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · "

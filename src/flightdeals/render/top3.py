@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from ..config import Config
 from ..models import Combo
-from ..texts import T, fmt_date_wd_short, fmt_datetime, fmt_nights, fmt_price, month_name
+from ..texts import T, fmt_checked, fmt_date_wd_short, fmt_nights, fmt_price, month_name
 from .common import H, M, W, Painter, hex2rgb, mix, price_color
 
 MEDALS = [hex2rgb("#F5C542"), hex2rgb("#C9D1DC"), hex2rgb("#D08B4E")]   # Gold, Silber, Bronze
@@ -46,7 +46,7 @@ def _card(p: Painter, top: int, h: int, rank: int, cat: dict, c: Combo, cfg: Con
 def render_top3(cfg: Config, combos: list, months: list[date], updated: datetime, test: bool = False) -> Painter:
     p = Painter(cfg)
     t = p.t
-    p.header()
+    p.header(kicker="FLUG-NEWS", when=updated)
     p.pill(M, 92, "TOP 3 KOMBINATIONEN", "extrabold", 38, t.background, MEDALS[0], pad_x=26, pad_y=14)
     names = " & ".join(month_name(m.year, m.month).split()[0] for m in months)
     p.text((M, 182), f"Hin- und Rückflug · Abflug im {names} {months[-1].year}", "semibold", 26, t.muted, max_w=W - 2 * M)
@@ -55,7 +55,7 @@ def render_top3(cfg: Config, combos: list, months: list[date], updated: datetime
 
     footer_top = p.footer([
         (cfg["fare"]["baggage_note"], t.muted),
-        (f"{T['updated']}: {fmt_datetime(updated)} · Preise pro Person · {T['may_change']}", t.muted),
+        (f"{T['updated']}: Preise {fmt_checked(updated)} · pro Person, Basic-Tarif", t.muted),
         (cfg["page"]["disclaimer"], t.grey),
     ], size=17, bottom=H - 22)
     strip_top = p.info_strip(footer_top - 12)

@@ -59,6 +59,16 @@ def fmt_date_wd_short(d: date) -> str:
     return f"{WOCHENTAGE_KURZ[d.weekday()]}, {d.strftime('%d.%m.')}"
 
 
+def fmt_checked(dt: datetime) -> str:
+    """'Preis geprüft am 19.11.2026 um 01:38 Uhr' – schützt vor dem Vorwurf falscher Preise."""
+    return f"geprüft am {dt.strftime('%d.%m.%Y')} um {dt.strftime('%H:%M')} Uhr"
+
+
+def edition_line(dt: datetime) -> str:
+    """Erste Zeile jedes Beitrags: '🗞️ Flug-News · Donnerstag, 19.11.2026'"""
+    return f"🗞️ Flug-News · {WOCHENTAGE[dt.weekday()]}, {dt.strftime('%d.%m.%Y')}"
+
+
 def fmt_datetime(dt: datetime) -> str:
     return f"{dt.strftime('%d.%m.%Y')}, {dt.strftime('%H:%M')} Uhr"
 

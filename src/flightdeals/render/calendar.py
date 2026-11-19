@@ -7,7 +7,7 @@ from datetime import date, datetime
 from ..analysis import departure_dt
 from ..config import Config
 from ..models import Combo, Snapshot
-from ..texts import T, WOCHENTAGE_KURZ, fmt_date_wd, fmt_date_wd_short, fmt_datetime, fmt_nights, fmt_price, month_name
+from ..texts import T, WOCHENTAGE_KURZ, fmt_checked, fmt_date_wd, fmt_date_wd_short, fmt_nights, fmt_price, month_name
 from .common import H, M, W, Painter, mix, price_color
 
 GAP = 6
@@ -158,16 +158,20 @@ def render_month(cfg: Config, month: date, snap: Snapshot, combo: Combo | None, 
     p = Painter(cfg)
     t = p.t
     r = cfg["route"]
-    p.header()
-    p.text((M, 82), f"{T['calendar'].upper()} · {r['airline'].upper()}-DIREKTFLÜGE", "bold", 22, t.accent)
-    p.text((M, 108), month_name(month.year, month.month), "extrabold", 54, t.text)
+    if cfg["page"].get("news_banner"):
+        p.header(kicker=T["calendar"].upper(), when=snap.fetched_at)
+        p.text((M, 92), month_name(month.year, month.month), "extrabold", 56, t.text)
+    else:
+        p.header()
+        p.text((M, 82), f"{T['calendar'].upper()} · {r['airline'].upper()}-DIREKTFLÜGE", "bold", 22, t.accent)
+        p.text((M, 108), month_name(month.year, month.month), "extrabold", 54, t.text)
 
     hl_out = {combo.outbound.day} if combo else set()
     hl_ret = {combo.inbound.day} if combo else set()
 
     # --- Layout von unten nach oben berechnen, damit nichts überlappt ---------------
     footer_lines = [
-        (f"{T['updated']}: {fmt_datetime(snap.fetched_at)} · Preise pro Person, Basic-Tarif (nur 1 kleine Tasche)",
+        (f"{T['updated']}: Preise {fmt_checked(snap.fetched_at)} · pro Person, Basic-Tarif (nur 1 kleine Tasche)",
          t.muted),
         (cfg["page"]["disclaimer"], mix(t.grey, t.muted, 0.5)),
     ]

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..config import Config
 from ..models import Alert, Fare
-from ..texts import ALERT_TITLES, T, fmt_date_wd, fmt_datetime, fmt_nights, fmt_pct, fmt_price
+from ..texts import ALERT_TITLES, T, fmt_checked, fmt_date_wd, fmt_datetime, fmt_nights, fmt_pct, fmt_price
 from .common import H, M, W, Painter, mix, price_color
 
 KIND_COLOR = {
@@ -118,7 +118,7 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
     p = Painter(cfg)
     t = p.t
     color = getattr(t, KIND_COLOR[alert.kind])
-    p.header()
+    p.header(kicker="FLUG-NEWS", when=updated)
 
     # Titel-Badge
     title = ALERT_TITLES[alert.kind]
@@ -128,7 +128,7 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
         from ..texts import month_name
         sub = f"Neuer Tiefstpreis für {month_name(alert.fare.day.year, alert.fare.day.month)}"
     f_sub = p.text((M, by1 + 16), sub, "semibold", 26, t.muted)
-    p.text((M + p.tw(sub, f_sub) + 16, by1 + 19), f"· {T['updated']}: {fmt_datetime(updated)}", "semibold", 22,
+    p.text((M + p.tw(sub, f_sub) + 16, by1 + 19), f"· Preis {fmt_checked(updated)}", "semibold", 22,
            mix(t.muted, t.background, 0.15), max_w=W - 2 * M - p.tw(sub, f_sub) - 16)
     y = by1 + 58
     if alert.also:

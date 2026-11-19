@@ -91,8 +91,10 @@ class Painter:
         return y
 
     # --- wiederkehrende Elemente -------------------------------------------------
-    def header(self):
+    def header(self, kicker: str = "FLUG-NEWS", when=None):
         t = self.t
+        if self.cfg["page"].get("news_banner"):
+            return self._news_header(kicker, when)
         label = self.cfg["page"].get("badge", "Unabhängige Infoseite")
         f = self.font("semibold", 18)
         bw = self.tw(label, f) + 32
@@ -100,6 +102,21 @@ class Painter:
         # neutrales Etikett (kein Airline-Logo, damit nichts wie ein offizieller Ryanair-Beitrag aussieht)
         self.rrect((W - M - bw, 34, W - M, 70), 18, outline=t.border, width=2)
         self.d.text((W - M - bw / 2, 52), label, font=f, fill=t.muted, anchor="mm")
+
+    def _news_header(self, kicker: str, when=None):
+        """Kopf als tägliche Ausgabe: 'FLUG-NEWS · DONNERSTAG, 19.11.2026' gut sichtbar oben."""
+        from ..texts import WOCHENTAGE
+        t = self.t
+        today = when or self.cfg.now()
+        label = self.cfg["page"].get("badge", "Unabhängige Infoseite")
+        fb = self.font("semibold", 18)
+        bw = self.tw(label, fb) + 32
+        self.rrect((W - M - bw, 26, W - M, 62), 18, outline=t.border, width=2)
+        self.d.text((W - M - bw / 2, 44), label, font=fb, fill=t.muted, anchor="mm")
+        self.rrect((M, 30, M + 8, 58), 3, fill=t.accent)                     # Akzentbalken
+        news = f"{kicker} · {WOCHENTAGE[today.weekday()].upper()}, {today.strftime('%d.%m.%Y')}"
+        self.text((M + 20, 28), news, "extrabold", 26, t.accent, max_w=W - 2 * M - bw - 40)
+        self.text((M + 20, 62), self.cfg["page"]["name"], "medium", 17, t.muted, max_w=W - 2 * M - 40)
 
     def footer(self, lines: list[tuple[str, tuple]], size: int = 17, bottom: int = H - 26) -> int:
         """Zeichnet Zeilen (Text, Farbe) von unten nach oben; gibt die oberste y-Position zurück."""
