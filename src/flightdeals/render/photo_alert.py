@@ -1,5 +1,5 @@
 """Fotostil (nur für NEUER TIEFSTPREIS): Frankfurt und Nador bei Nacht als Hintergrund,
-gepunkteter Flugbogen mit Flugzeug in der Mitte in Flugrichtung.
+Flugbogen mit Kondensstreifen, Flugzeug in der Mitte in Flugrichtung, gestrichelte Linie + Pin zum Ziel.
 
 Hinflug: Bogen von Frankfurt-Hahn (links) nach Nador (rechts), Flugzeug zeigt nach rechts.
 Rückflug: Bogen von Nador (rechts) nach Frankfurt-Hahn (links), Flugzeug zeigt nach links.
@@ -11,7 +11,7 @@ import math
 from datetime import datetime
 from functools import lru_cache
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from ..config import Config
 from ..models import Alert
@@ -67,24 +67,76 @@ def _bezier(a, c, b, t):
 
 
 def _arc(p: Painter, start, end, apex_y: float):
-    """Gepunkteter Bogen von start nach end, Flugzeug in der Mitte zeigt Richtung end."""
+    """Flugbogen von start nach end: Kondensstreifen (durchgezogen, wird zum Flugzeug hin kräftiger)
+    hinter dem Flugzeug, gestrichelte Linie mit Pfeilspitze davor, grüner Standort-Pin am Ziel."""
     ctrl = ((start[0] + end[0]) / 2, apex_y)
-    n = 46
-    for i in range(n + 1):
-        t = i / n
-        if abs(t - 0.5) < 0.07:
-            continue
-        x, y = _bezier(start, ctrl, end, t)
-        done = t < 0.5                                      # schon geflogen = kräftiger
-        r = 5 if done else 4
-        p.d.ellipse((x - r, y - r, x + r, y + r), fill=(255, 255, 255) if done else (200, 210, 225))
-    for (x, y), col in ((start, p.t.accent), (end, p.t.green)):   # Abflug blau · Ankunft grün
-        p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=col, outline=(255, 255, 255), width=3)
-    x, y = _bezier(start, ctrl, end, 0.5)
-    qx, qy = _bezier(start, ctrl, end, 0.51)
-    ang = math.degrees(math.atan2(qy - y, qx - x))
-    p.d.ellipse((x - 34, y - 34, x + 34, y + 34), fill=p.t.accent)
-    p.plane(x, y, 26, ang, (255, 255, 255))
+
+    def B(t):
+        return _bezier(start, ctrl, end, t)
+
+    SS = 4
+    lay = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lay)
+    glow = Image.new("RGBA", lay.size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    n = 120
+    for i in range(n):                                       # Kondensstreifen bis zum Flugzeug
+        a0, a1 = B(0.5 * i / n), B(0.5 * (i + 1) / n)
+        k = (i + 1) / n                                      # 0 am Start → 1 am Flugzeug
+        w = 3 + 7 * k
+        alpha = int(40 + 215 * k)
+        seg = (a0[0] * SS, a0[1] * SS, a1[0] * SS, a1[1] * SS)
+        gd.line(seg, fill=(110, 170, 255, int(alpha * 0.7)), width=int((w + 10) * SS))
+        ld.line(seg, fill=(255, 255, 255, alpha), width=int(w * SS))
+        r = w * SS / 2
+        ld.ellipse((a1[0] * SS - r, a1[1] * SS - r, a1[0] * SS + r, a1[1] * SS + r), fill=(255, 255, 255, alpha))
+    glow = glow.filter(ImageFilter.GaussianBlur(10 * SS))
+    t, dash, gap = 0.565, 0.028, 0.02                        # gestrichelte Strecke vor dem Flugzeug
+    while t < 0.93:
+        te = min(t + dash, 0.93)
+        pts = [B(t + (te - t) * j / 6) for j in range(7)]
+        ld.line([(x * SS, y * SS) for x, y in pts], fill=(225, 232, 245, 235), width=5 * SS)
+        t = te + gap
+    tx, ty = B(0.955)                                        # Pfeilspitze
+    bx, by = B(0.92)
+    ang = math.atan2(ty - by, tx - bx)
+    L, Wd = 26, 16
+    tri = [(tx, ty)] + [(tx - L * math.cos(ang) + s * Wd * math.cos(ang + math.pi / 2),
+                         ty - L * math.sin(ang) + s * Wd * math.sin(ang + math.pi / 2)) for s in (1, -1)]
+    ld.polygon([(x * SS, y * SS) for x, y in tri], fill=(225, 232, 245, 245))
+    base = p.img.convert("RGBA")
+    base.alpha_composite(glow.resize((W, H), Image.LANCZOS))
+    base.alpha_composite(lay.resize((W, H), Image.LANCZOS))
+    p.img.paste(base.convert("RGB"))
+    p.d = ImageDraw.Draw(p.img)
+    x, y = start                                             # Abflug: blauer Punkt
+    p.d.ellipse((x - 10, y - 10, x + 10, y + 10), fill=p.t.accent, outline=(255, 255, 255), width=3)
+    _pin(p, end[0], end[1] + 6, p.t.green)                   # Ziel: grüner Pin
+    x, y = B(0.5)                                            # Flugzeug in der Mitte, Richtung Ziel
+    qx, qy = B(0.51)
+    p.d.ellipse((x - 36, y - 36, x + 36, y + 36), fill=(255, 255, 255))
+    p.d.ellipse((x - 32, y - 32, x + 32, y + 32), fill=p.t.accent)
+    p.plane(x, y, 26, math.degrees(math.atan2(qy - y, qx - x)), (255, 255, 255))
+
+
+def _pin(p: Painter, x: float, tip_y: float, col):
+    """Standort-Pin, Spitze bei (x, tip_y)."""
+    SS, R, Hh = 4, 22, 62
+    box = Image.new("RGBA", ((2 * R + 16) * SS, (Hh + 16) * SS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(box)
+    cx, cy = (R + 8) * SS, (R + 6) * SS
+    tip = (cx, (Hh + 6) * SS)
+    for off, c in ((3 * SS, (0, 0, 0, 120)), (0, (*col, 255))):      # Schatten, dann Pin
+        d.ellipse((cx - R * SS + off, cy - R * SS + off, cx + R * SS + off, cy + R * SS + off), fill=c)
+        d.polygon([(cx - R * SS * 0.82 + off, cy + R * SS * 0.55 + off),
+                   (cx + R * SS * 0.82 + off, cy + R * SS * 0.55 + off), (tip[0] + off, tip[1] + off)], fill=c)
+    d.ellipse((cx - R * SS, cy - R * SS, cx + R * SS, cy + R * SS), outline=(255, 255, 255, 255), width=3 * SS)
+    d.ellipse((cx - 8 * SS, cy - 8 * SS, cx + 8 * SS, cy + 8 * SS), fill=(255, 255, 255, 255))
+    box = box.resize((box.width // SS, box.height // SS), Image.LANCZOS)
+    base = p.img.convert("RGBA")
+    base.alpha_composite(box, (int(x - (R + 8)), int(tip_y - (Hh + 6))))
+    p.img.paste(base.convert("RGB"))
+    p.d = ImageDraw.Draw(p.img)
 
 
 def render_tiefstpreis_photo(cfg: Config, alert: Alert, updated: datetime) -> Painter:
