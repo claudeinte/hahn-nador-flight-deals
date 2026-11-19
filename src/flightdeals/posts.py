@@ -72,7 +72,7 @@ def _flags(cfg: Config) -> tuple[str, str]:
 def _footer_text(cfg: Config, snap: Snapshot) -> str:
     """Gemeinsamer Abschluss aller Beiträge – jede Information nur einmal."""
     return (f"🧳 {cfg['fare']['baggage_note']}\n"
-            f"🕒 Stand: {fmt_datetime(snap.fetched_at)}\n\n"
+            "\n"
             f"ℹ️ {cfg['page']['disclaimer']} Wir verkaufen keine Tickets – gebucht wird ausschließlich "
             f"auf ryanair.com.\n\n{cfg['page']['hashtags']}")
 
@@ -100,9 +100,10 @@ def calendar_text(cfg: Config, snap: Snapshot, months: list[date], combos: dict)
     if combos:
         cheapest = min(c.total for c in combos.values())
         parts = [f"📅 {names}: {route} – hin & zurück ab {fmt_price(cheapest)} pro Person!",
-                 f"Alle {r['airline']}-Preise im Kalender 👇", ""]
+                 f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Alle {r['airline']}-Preise im Kalender 👇", ""]
     else:
-        parts = [f"📅 {names}: {route}", f"Alle {r['airline']}-Preise im Kalender 👇", ""]
+        parts = [f"📅 {names}: {route}",
+                 f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Alle {r['airline']}-Preise im Kalender 👇", ""]
     for m in months:
         c = combos.get(m)
         if len(months) > 1:
@@ -140,7 +141,8 @@ def alert_line(cfg: Config, a: Alert) -> str:
 
 
 def alerts_text(cfg: Config, snap: Snapshot, alerts: list[Alert]) -> str:
-    head = "🚨 Neue Angebote Frankfurt-Hahn ⇄ Nador" if len(alerts) > 1 else "🚨 Neues Angebot Frankfurt-Hahn ⇄ Nador"
+    head = ("🚨 Neue Angebote Frankfurt-Hahn ⇄ Nador" if len(alerts) > 1 else "🚨 Neues Angebot Frankfurt-Hahn ⇄ Nador") \
+        + f"\n🕒 Stand: {fmt_datetime(snap.fetched_at)}"
     body = "\n\n".join(alert_line(cfg, a) for a in alerts)
     return f"{head}\n\n{body}\n\n{_footer_text(cfg, snap)}"
 
@@ -224,7 +226,8 @@ def top3_text(cfg: Config, snap: Snapshot, months: list[date], combos: list) -> 
     cheapest = min(c.total for _, c in combos)
     fo, fd = _flags(cfg)
     parts = [f"🏆 Top 3 Kombinationen {names}: {fo} {r['origin_name']} ✈️ {fd} {r['destination_name']} – "
-             f"hin & zurück ab {fmt_price(cheapest)} pro Person!", "Die besten Termine im Bild 👇", ""]
+             f"hin & zurück ab {fmt_price(cheapest)} pro Person!",
+             f"🕒 Stand: {fmt_datetime(snap.fetched_at)} · Die besten Termine im Bild 👇", ""]
     for i, (cat, c) in enumerate(combos):
         parts.append(f"{MEDAL_EMOJI[i]} {cat['label']} – {fmt_nights(c.nights)} in {r['destination_name']}")
         parts.append(f"🛫 {T['outbound']} {fo} → {fd}: {fmt_date_wd(c.outbound.day)} · {c.outbound.departure} Uhr · "

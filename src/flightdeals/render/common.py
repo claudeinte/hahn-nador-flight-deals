@@ -162,6 +162,24 @@ class Painter:
         self.d = ImageDraw.Draw(self.img)
         return w
 
+    def route_title(self, route: str, x: float, y: float, size: int, weight: str = "extrabold",
+                    color: tuple | None = None, flag_h: int | None = None) -> float:
+        """'[Flagge] Stadt → [Flagge] Stadt' in beliebiger Größe. Gibt die x-Position am Ende zurück."""
+        r = self.cfg["route"]
+        country = {r["origin"]: r["origin_country"], r["destination"]: r["destination_country"]}
+        color = color or self.t.text
+        fh = flag_h or int(size * 0.62)
+        f = self.font(weight, size)
+        o, d = route.split("-")
+        for i, code in enumerate((o, d)):
+            if i:
+                self.d.text((x + 10, y), "→", font=f, fill=color)
+                x += 10 + self.tw("→", f) + 14
+            x += self.flag(country[code], x, y + size * 0.22, fh) + 12
+            self.d.text((x, y), self.cfg.city(code), font=f, fill=color)
+            x += self.tw(self.cfg.city(code), f)
+        return x
+
     def flag_pair(self, route: str, x: float, y: float, h: int = 18) -> int:
         """Kleine Flaggen 'von → nach' (z. B. 🇩🇪→🇲🇦) für eine Strecke wie 'HHN-NDR'. Gibt die Breite zurück."""
         r = self.cfg["route"]

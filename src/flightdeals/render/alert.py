@@ -127,7 +127,9 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
     if alert.kind == "NEUER_TIEFSTPREIS" and alert.fare:      # nur belegbare Aussage (eigener Preisverlauf)
         from ..texts import month_name
         sub = f"Neuer Tiefstpreis für {month_name(alert.fare.day.year, alert.fare.day.month)}"
-    p.text((M, by1 + 16), sub, "semibold", 26, t.muted)
+    f_sub = p.text((M, by1 + 16), sub, "semibold", 26, t.muted)
+    p.text((M + p.tw(sub, f_sub) + 16, by1 + 19), f"· {T['updated']}: {fmt_datetime(updated)}", "semibold", 22,
+           mix(t.muted, t.background, 0.15), max_w=W - 2 * M - p.tw(sub, f_sub) - 16)
     y = by1 + 58
     if alert.also:
         x = M
@@ -150,7 +152,9 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
                   ("Rückflug", t.teal, _series(history, c.inbound.key))]
     else:
         f = alert.fare
-        p.text((M, y + 4), f"{cfg.city(f.origin)} → {cfg.city(f.destination)}", "extrabold", 50, t.text, max_w=W - 2 * M)
+        out = f.route == cfg.route_out
+        p.plane(M + 26, y + 34, 30, -28 if out else 28, t.accent)        # Flugzeug + Flaggen
+        p.route_title(f.route, M + 66, y + 4, 46)
         p.text((M, y + 66), f"{f.origin} → {f.destination} · {cfg['route']['airline']} · Direktflug", "medium", 24, t.muted)
         p.text((M, y + 116), fmt_date_wd(f.day, long=True), "bold", 40, t.text)
         p.text((M, y + 166), f"Abflug {f.departure} Uhr · Ankunft {f.arrival} Uhr (Ortszeit)", "medium", 24, t.muted)
@@ -186,7 +190,6 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
 
     footer_top = p.footer([
         (cfg["fare"]["baggage_note"], t.muted),
-        (f"{T['updated']}: {fmt_datetime(updated)} · {T['may_change']}", t.muted),
         (cfg["page"]["disclaimer"], t.grey),
     ], size=17, bottom=H - 22)
     footer_top = p.info_strip(footer_top - 12)
