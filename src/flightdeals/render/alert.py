@@ -20,7 +20,7 @@ SUBLINE = {
     "PREISSTURZ": "Der Preis ist deutlich gefallen",
     "TOP_ANGEBOT": "Neuer Flug zum Top-Preis",
     "GUENSTIGER_HIN_RUECK": "Hin und zurück zum Sparpreis",
-    "NEUER_TIEFSTPREIS": "So günstig war dieser Monat noch nie",
+    "NEUER_TIEFSTPREIS": "Neuer Tiefstpreis",
     "LAST_MINUTE": "Kurzfristig günstig fliegen",
 }
 
@@ -123,7 +123,11 @@ def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: dat
     # Titel-Badge
     title = ALERT_TITLES[alert.kind]
     _, bx1, by1 = p.pill(M, 92, title, "extrabold", 40, t.background, color, pad_x=26, pad_y=14)
-    p.text((M, by1 + 16), SUBLINE[alert.kind], "semibold", 26, t.muted)
+    sub = SUBLINE[alert.kind]
+    if alert.kind == "NEUER_TIEFSTPREIS" and alert.fare:      # nur belegbare Aussage (eigener Preisverlauf)
+        from ..texts import month_name
+        sub = f"Neuer Tiefstpreis für {month_name(alert.fare.day.year, alert.fare.day.month)}"
+    p.text((M, by1 + 16), sub, "semibold", 26, t.muted)
     y = by1 + 58
     if alert.also:
         x = M
