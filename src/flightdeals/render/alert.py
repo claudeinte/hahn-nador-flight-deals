@@ -115,6 +115,9 @@ def _leg_card(p: Painter, top: int, label: str, fare: Fare, cfg: Config):
 
 
 def render_alert(cfg: Config, alert: Alert, history, now: datetime, updated: datetime) -> Painter:
+    if alert.kind == "NEUER_TIEFSTPREIS" and alert.fare and cfg.raw.get("photos", {}).get("tiefstpreis_photo_style"):
+        from .photo_alert import render_tiefstpreis_photo      # Fotostil nur für diesen Typ
+        return render_tiefstpreis_photo(cfg, alert, updated)
     p = Painter(cfg)
     t = p.t
     color = getattr(t, KIND_COLOR[alert.kind])

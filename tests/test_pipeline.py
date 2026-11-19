@@ -109,3 +109,18 @@ def test_facebook_disabled_by_default(cfg, monkeypatch, tmp_path):
     d.mkdir()
     (d / "beitrag.json").write_text(json.dumps({"bilder": [], "testdaten": True}))
     assert publish(d, cfg)["veroeffentlicht"] is False                     # Testdaten nie veröffentlichen
+
+
+def test_tiefstpreis_photo_style_both_directions(cfg, tmp_path):
+    from flightdeals.models import Alert
+    from flightdeals.render.alert import render_alert
+    now = berlin(2026, 11, 19, 1, 52)
+    for route, day in (("HHN-NDR", date(2027, 1, 10)), ("NDR-HHN", date(2026, 12, 18))):
+        a = Alert("NEUER_TIEFSTPREIS", fare=Fare(route, day, 16.99, "06:40", "08:45"), old_price=23.99)
+        img = render_alert(cfg, a, None, now, now).img
+        assert img.size == (1080, 1350)
+        assert img.getpixel((540, 300)) != (13, 17, 23)        # Foto im Hintergrund sichtbar
+    other = Alert("PREISSTURZ", fare=Fare("HHN-NDR", date(2026, 12, 4), 24.99, "18:20", "20:25"), old_price=34.99)
+    from flightdeals.storage import History
+    img2 = render_alert(cfg, other, History(tmp_path / "h.json"), now, now).img
+    assert img2.getpixel((1070, 700)) == (13, 17, 23)           # andere Typen: unverändert ohne Foto

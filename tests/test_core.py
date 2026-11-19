@@ -205,7 +205,7 @@ def test_all_image_texts_exist_in_font(cfg):
     cmap = TTFont(str(cfg.fonts_dir / "Inter-ExtraBold.ttf")).getBestCmap()
     texts = list(T.values()) + list(ALERT_TITLES.values()) + MONATE + WOCHENTAGE + [
         cfg["page"]["name"], cfg["page"]["disclaimer"], cfg["page"]["badge"], cfg["page"]["booking_hint"],
-        cfg["fare"]["baggage_note"], "↔ → · – − × € % ",
+        cfg["fare"]["baggage_note"], cfg["photos"]["credit"], "↔ → · – − × € % ",
         *[c["label"] for c in cfg["top3"]["categories"]]]
     missing = {ch for s in texts for ch in s if not ch.isspace() and ord(ch) not in cmap}
     assert not missing, f"Zeichen fehlen in der Schrift: {missing}"

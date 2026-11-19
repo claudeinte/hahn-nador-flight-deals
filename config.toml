@@ -58,6 +58,13 @@ max_items_per_alert_post = 4
 # Wenn ein Flug mehrere Bedingungen erfüllt, gewinnt die erste in dieser Liste
 priority = ["PREISSTURZ", "NEUER_TIEFSTPREIS", "LAST_MINUTE", "TOP_ANGEBOT"]
 
+[photos]
+# Fotostil mit Frankfurt + Nador bei Nacht – NUR für Meldungen "NEUER TIEFSTPREIS" (Hin- und Rückflug).
+tiefstpreis_photo_style = true
+origin_file = "frankfurt_nacht.jpg"
+destination_file = "nador_corniche.jpg"
+credit = "Fotos: Jörg Braukmann (Frankfurt), Soufiane errami (Nador) · Wikimedia Commons · CC BY-SA 4.0"
+
 [schedule]
 daily_post_hour = 8        # Uhrzeit (Europe/Berlin) des täglichen Beitrags
 weekly_post_weekday = 6    # 0 = Montag … 6 = Sonntag
