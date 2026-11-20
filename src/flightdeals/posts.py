@@ -73,6 +73,8 @@ def _footer_text(cfg: Config, snap: Snapshot) -> str:
     """Gemeinsamer Abschluss aller Beiträge – jede Information nur einmal."""
     return (f"🧳 {cfg['fare']['baggage_note']}\n"
             "\n"
+            f"{cfg['page']['like_cta']}\n"
+            "\n"
             f"ℹ️ {cfg['page']['disclaimer']} Wir verkaufen keine Tickets – gebucht wird ausschließlich "
             f"auf ryanair.com.\n\n{cfg['page']['hashtags']}")
 

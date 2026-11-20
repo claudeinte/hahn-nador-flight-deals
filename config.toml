@@ -9,7 +9,9 @@ badge = "Unabhängige Infoseite"   # Etikett oben rechts in allen Bildern
 news_banner = true                # Kopfzeile als Tagesausgabe ("FLUG-NEWS · DONNERSTAG, 19.11.2026")
 # Hinweis-Leiste unten in allen Bildern (Links sind in Bildern nicht klickbar → Verweis auf den Beitragstext)
 booking_hint = "Alle Flüge werden von Ryanair durchgeführt. Buchung nur auf ryanair.com – Link im Beitragstext."
-hashtags = "#Nador #NadorCity #Rif #الناظور #الريف #MarokkanerInDeutschland #MRE #مغاربة_ألمانيا #Heimaturlaub #FlügeNachMarokko"
+hashtags = "#Nador #FrankfurtHahn #Ryanair #Rif #nadorcity #MARROKO #الناظور #MRE #Arif"
+# Steht in jedem Beitrag direkt nach dem Gepäckhinweis (Basic-Tarif)
+like_cta = "👍 Wenn dir unsere Flugtipps gefallen, freuen wir uns über ein Like. Folge unserer Seite für günstige Flüge von Frankfurt-Hahn nach Nador und von Nador nach Frankfurt-Hahn. ✈️"
 
 [route]
 origin = "HHN"

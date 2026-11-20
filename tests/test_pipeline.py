@@ -124,3 +124,13 @@ def test_tiefstpreis_photo_style_both_directions(cfg, tmp_path):
     from flightdeals.storage import History
     img2 = render_alert(cfg, other, History(tmp_path / "h.json"), now, now).img
     assert img2.getpixel((1070, 700)) == (13, 17, 23)           # andere Typen: unverändert ohne Foto
+
+
+def test_footer_like_cta_after_baggage():
+    from flightdeals.config import load_config
+    from flightdeals.posts import _footer_text
+    cfg = load_config()
+    txt = _footer_text(cfg, None)
+    i_bag, i_cta, i_disc = txt.index("Basic-Tarif"), txt.index("👍 Wenn dir unsere Flugtipps gefallen"), txt.index("ℹ️")
+    assert i_bag < i_cta < i_disc
+    assert txt.rstrip().endswith("#Arif")
