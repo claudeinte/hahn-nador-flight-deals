@@ -542,6 +542,39 @@ def next_months(today, n=9):
     return out
 
 
+def _header_sky(deco, kind):
+    """Kopf-Himmel für Sonder-Stories: 'nacht' (Sterne), 'tag' (blauer Himmel, Sonne, Wolken), 'gold' (Sonnenuntergang, Funkeln)."""
+    dd = ImageDraw.Draw(deco)
+    top, bot = {"nacht": ((40, 70, 140), (14, 28, 60)), "tag": ((96, 170, 236), (40, 104, 186)),
+                "gold": ((252, 196, 92), (168, 74, 96))}[kind]
+    for y in range(DECO_END):
+        dd.line((0, y, W, y), fill=(*lerp(top, bot, y / DECO_END), 255))
+    rnd = random.Random(2)
+    if kind == "nacht":
+        for _ in range(60):
+            x, y = rnd.randint(0, W), rnd.randint(4, DECO_END - 10)
+            dd.ellipse((x - 1.6, y - 1.6, x + 1.6, y + 1.6), fill=(255, 255, 255, rnd.randint(110, 230)))
+    elif kind == "tag":
+        glow = Image.new("RGBA", deco.size, (0, 0, 0, 0))
+        ImageDraw.Draw(glow).ellipse((-10, -50, 170, 130), fill=(255, 236, 160, 120))
+        deco.alpha_composite(glow.filter(ImageFilter.GaussianBlur(40)))
+        dd = ImageDraw.Draw(deco)
+        dd.ellipse((40, 8, 120, 88), fill=(255, 238, 150, 255))
+        for cx_, cy_, sc in ((300, 46, 1.0), (760, 30, 0.8), (1000, 70, 0.9), (620, 104, 0.6)):
+            for dx, dy, rr in ((0, 0, 22), (26, -10, 28), (56, 0, 22), (28, 8, 22), (-22, 6, 16)):
+                dd.ellipse((cx_ + (dx - rr) * sc, cy_ + (dy - rr) * sc, cx_ + (dx + rr) * sc, cy_ + (dy + rr) * sc),
+                           fill=(255, 255, 255, 235))
+    else:                                                    # gold: Funkeln wie Konfetti/Sterne
+        for _ in range(38):
+            x, y, r_ = rnd.randint(0, W), rnd.randint(6, DECO_END - 14), rnd.choice((4, 5, 6, 8))
+            col = (255, 246, 200, rnd.randint(170, 250))
+            dd.polygon([(x, y - r_), (x + r_ * .28, y - r_ * .28), (x + r_, y), (x + r_ * .28, y + r_ * .28),
+                        (x, y + r_), (x - r_ * .28, y + r_ * .28), (x - r_, y), (x - r_ * .28, y - r_ * .28)], fill=col)
+    pts = [(170 + (740 * i / 40), 132 - 72 * math.sin(math.pi * i / 40)) for i in range(41)]
+    for i in range(0, 40, 2):
+        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 230), width=5)
+
+
 def _route_marks(p):
     """Start/Ziel am Flugbogen: links 🇩🇪 HHN, rechts Nador 🇲🇦."""
     t = p.t
@@ -572,16 +605,7 @@ def render_summary(cfg, snap, months, now):
         d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / H))
     # Kopf-Deko: Nachthimmel mit Sternen und Flugbogen Frankfurt-Hahn → Nador
     deco = Image.new("RGBA", (W, DECO_END), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(deco)
-    for y in range(DECO_END):
-        dd.line((0, y, W, y), fill=(*lerp((40, 70, 140), (14, 28, 60), y / DECO_END), 255))
-    rnd = random.Random(2)
-    for _ in range(60):
-        x, y = rnd.randint(0, W), rnd.randint(4, DECO_END - 10)
-        dd.ellipse((x - 1.6, y - 1.6, x + 1.6, y + 1.6), fill=(255, 255, 255, rnd.randint(110, 230)))
-    pts = [(170 + (740 * i / 40), 132 - 72 * math.sin(math.pi * i / 40)) for i in range(41)]
-    for i in range(0, 40, 2):
-        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 200), width=4)
+    _header_sky(deco, "tag")
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
@@ -678,7 +702,7 @@ def render_summary(cfg, snap, months, now):
     return p.img
 
 
-def _frame(cfg, now, title, subtitle):
+def _frame(cfg, now, title, subtitle, sky="nacht"):
     """Gemeinsamer Rahmen für Sonder-Stories: Nachthimmel mit Flugbogen, Titel, Prüfzeit, Untertitel, Logo."""
     p = Painter(cfg)
     t = p.t
@@ -687,16 +711,7 @@ def _frame(cfg, now, title, subtitle):
     for y in range(H):
         d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / H))
     deco = Image.new("RGBA", (W, DECO_END), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(deco)
-    for y in range(DECO_END):
-        dd.line((0, y, W, y), fill=(*lerp((40, 70, 140), (14, 28, 60), y / DECO_END), 255))
-    rnd = random.Random(2)
-    for _ in range(60):
-        x, y = rnd.randint(0, W), rnd.randint(4, DECO_END - 10)
-        dd.ellipse((x - 1.6, y - 1.6, x + 1.6, y + 1.6), fill=(255, 255, 255, rnd.randint(110, 230)))
-    pts = [(170 + (740 * i / 40), 132 - 72 * math.sin(math.pi * i / 40)) for i in range(41)]
-    for i in range(0, 40, 2):
-        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 200), width=4)
+    _header_sky(deco, sky)
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
@@ -790,7 +805,7 @@ def render_kombis(cfg, snap, now, n=5, min_n=3, max_n=30):
         if len(top) == n:
             break
     p = _frame(cfg, now, "TOP 5 KOMBINATIONEN",
-               f"Hin- und Rückflug · {min_n}–{max_n} Nächte · die günstigsten der nächsten {N_MONATE} Monate")
+               f"Hin- und Rückflug · {min_n}–{max_n} Nächte · die günstigsten der nächsten {N_MONATE} Monate", sky="gold")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
     y0, y1, gap = 380, 1712, 14
     h = (y1 - y0 - gap * (n - 1)) / n
