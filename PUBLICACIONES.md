@@ -11,6 +11,7 @@ Antes de proponer la publicación del día: leer este registro para **no repetir
 | 19.11.2026 | Alerta | NEUER TIEFSTPREIS HHN→NDR So 10.01.2027 06:40 | 16,99 € (antes 23,99 €, −29 %) · comprobado 01:52 | `output/publicado/2026-11-19_1_neuer-tiefstpreis-10-01/` |
 
 | 21.11.2026 | Stories (auto, prueba) | 10 stories IG + 10 FB: Bestpreise pro Monat + calendarios nov 2026 – jul 2027 (GitHub Actions, run 44858758811) | ida ene 17,99 € · vuelta dic 23,99 € · comprobado 03:59 | `data/stories_veroeffentlicht.json` |
+| 21.11.2026 | Stories (auto) | 14 stories IG + 14 FB (Bestpreise, Top 5, nach Dauer, 11 calendarios nov 2026 – sep 2027), cron-job 16:15, run 44918204366 | ida ene 17,99 € · vuelta dic 20,99 € · comprobado 16:15 | `data/stories_veroeffentlicht.json` |
 
 ## Ideas pendientes (no publicadas todavía)
 - Preissturz 04.12 (24,99 €) y 11.12 (38,99 €), detectados el 19.11 — ya no son „nuevos“ si pasan días.
