@@ -1083,11 +1083,12 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     chk = f"Preis bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
     shadow((W / 2, 1580), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (255, 255, 255), off=2)
     shadow((W / 2, 1626), "Der Preis kann sich im Laufe des Tages jederzeit ändern.", p.font("bold", 28), (225, 232, 242), off=2)
-    nxt = "Alle Preise und Termine in den nächsten Stories →"
-    fn = p.font("extrabold", 30)
-    nw = p.tw(nxt, fn) + 50
-    p.d.rounded_rectangle(((W - nw) / 2, 1664, (W + nw) / 2, 1716), 26, fill=t.accent)
-    p.d.text((W / 2, 1690), nxt, font=fn, fill=(255, 255, 255), anchor="mm")
+    if not rueck:                                            # nur in der ersten Story
+        nxt = "Alle Preise und Termine in den nächsten Stories →"
+        fn = p.font("extrabold", 30)
+        nw = p.tw(nxt, fn) + 50
+        p.d.rounded_rectangle(((W - nw) / 2, 1664, (W + nw) / 2, 1716), 26, fill=t.accent)
+        p.d.text((W / 2, 1690), nxt, font=fn, fill=(255, 255, 255), anchor="mm")
     p.d.text((W / 2, H - 50), cfg["photos"]["credit"], font=p.fit(cfg["photos"]["credit"], "bold", 16, W - 2 * PAD),
              fill=(190, 200, 215), anchor="mm")
     p.d.text((W / 2, H - 24), "Unabhängige Infoseite · keine Verbindung zu Ryanair · Buchung nur auf ryanair.com",
@@ -1137,48 +1138,77 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
                  f"Top 3, die seit {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.%Y} über {min_pct:.0f} % günstiger wurden")
                 if prev_at else f"Top 3 mit über {min_pct:.0f} % Preissenkung"), sky="tuerkis")
     n_items = sum(len(x[4]) for x in sections)
-    ch_ = int(min(230, (1640 - 420 - len(sections) * 102) / n_items - 12))
-    total = len(sections) * 102 + n_items * (ch_ + 12)
-    y = 420 + max(0, (1660 - 420 - total) / 2)               # Inhalt vertikal mittig
+    HEAD_H, GAP_C = 96, 18
+    avail = 1660 - 420
+    ch_ = int(min(400, (avail - len(sections) * HEAD_H - (n_items - 1) * GAP_C) / n_items))
+    k_ = ch_ / 400                                            # Schriftskala
+    total = len(sections) * HEAD_H + n_items * ch_ + (n_items - 1) * GAP_C
+    y = 420 + max(0, (avail - total) / 2)                     # Inhalt vertikal mittig
+    when = ((f"vor einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.})" if (today - prev_at.date()).days >= 7
+             else f"am {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}") if prev_at else "vorher")
     for label, route, outb, rt, items in sections:
-        p.d.ellipse((PAD, y, PAD + 54, y + 54), fill=p.t.accent)
-        p.plane(PAD + 27, y + 27, 23, -18 if outb else 198, (255, 255, 255))
-        p.d.text((PAD + 68, y + 27), label, font=p.font("extrabold", 40), fill=(255, 255, 255), anchor="lm")
-        p.d.text((PAD + 74 + p.tw(label, p.font("extrabold", 40)), y + 30), rt, font=p.font("bold", 26), fill=(190, 205, 225), anchor="lm")
-        y += 72
-        if not items:
-            hh = ch_
-            p.d.rounded_rectangle((PAD, y, W - PAD, y + hh), 20, fill=(18, 32, 54))
-            p.d.text((W / 2, y + hh / 2 - 22), f"Kein Preissturz über {min_pct:.0f} % seit {prev_at:%d.%m.}" if prev_at else f"Kein Preissturz über {min_pct:.0f} %", font=p.font("extrabold", 36),
-                     fill=(200, 212, 228), anchor="mm")
-            p.d.text((W / 2, y + hh / 2 + 26), "Die aktuellen Bestpreise findest du in den nächsten Stories →",
-                     font=p.font("bold", 26), fill=(150, 165, 185), anchor="mm")
-        for k in range(len(items)):
-            top0 = y + k * (ch_ + 12)
-            top = top0 + (ch_ - 170) / 2
-            pct, f, old = items[k]
+        fT = p.font("extrabold", 44)
+        x0 = (W - (62 + 16 + p.tw(label, fT) + 18 + p.tw(rt, p.font("bold", 28)))) / 2
+        p.d.ellipse((x0, y + 10, x0 + 62, y + 72), fill=p.t.accent)
+        p.plane(x0 + 31, y + 41, 26, -18 if outb else 198, (255, 255, 255))
+        p.d.text((x0 + 78, y + 41), label, font=fT, fill=(255, 255, 255), anchor="lm")
+        p.d.text((x0 + 96 + p.tw(label, fT), y + 45), rt, font=p.font("bold", 28), fill=(190, 205, 225), anchor="lm")
+        y += HEAD_H
+        for k, (pct, f, old) in enumerate(items):
+            top0 = y
             col = MEDALS[k + 1][1]
-            p.d.rounded_rectangle((PAD, top0, W - PAD, top0 + ch_), 20, fill=(20, 38, 64), outline=col, width=4)
-            draw_medal(p.img, PAD + 58, top0 + ch_ / 2 + 6, 30, k + 1, fpath)
-            p.d = ImageDraw.Draw(p.img)
-            p.d.text((PAD + 118, top + 50), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y}", font=p.font("extrabold", 36),
-                     fill=(255, 255, 255), anchor="lm")
-            p.d.text((PAD + 118, top + 98), f"Abflug {f.departure} Uhr", font=p.font("bold", 26), fill=(190, 205, 225), anchor="lm")
-            fo = p.font("bold", 30)
-            os_ = fmt_price(old)
-            xo = PAD + 118
-            p.d.text((xo, top + 140), os_, font=fo, fill=(150, 162, 180), anchor="lm")
-            wo = p.tw(os_, fo)
-            p.d.line((xo - 3, top + 141, xo + wo + 3, top + 141), fill=UP, width=4)
-            p.d.text((xo + wo + 14, top + 140), ((f"Preis vor einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.})" if (today - prev_at.date()).days >= 7
-               else f"Preis am {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}") if prev_at else "vorher"), font=p.font("bold", 22), fill=(150, 162, 180), anchor="lm")
-            p.d.text((W - PAD - 26, top + 72), fmt_price(f.price), font=p.font("extrabold", 58), fill=(60, 220, 120), anchor="rm")
-            lab = f"▼ −{pct:.0f} %"
-            fl = p.font("extrabold", 30)
-            lw = p.tw(lab, fl) + 30
-            p.d.rounded_rectangle((W - PAD - 26 - lw, top + 112, W - PAD - 26, top + 156), 22, fill=(22, 120, 60))
-            p.d.text((W - PAD - 26 - lw / 2, top + 134), lab, font=fl, fill=(255, 255, 255), anchor="mm")
-        y += max(1, len(items)) * (ch_ + 12) + 30
+            p.d.rounded_rectangle((PAD + 10, top0, W - PAD - 10, top0 + ch_), 30, fill=(20, 38, 64), outline=col, width=5)
+            if ch_ < 270:                                     # kompakt (viele Treffer): zweizeilig, Plakette rechts
+                draw_medal(p.img, PAD + 66, top0 + ch_ / 2 + 4, 30, k + 1, fpath)
+                p.d = ImageDraw.Draw(p.img)
+                xl = PAD + 124
+                p.d.text((xl, top0 + ch_ * 0.30), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y} · {f.departure} Uhr",
+                         font=p.font("extrabold", 32), fill=(255, 255, 255), anchor="lm")
+                fo, fn_ = p.font("extrabold", 36), p.font("extrabold", 58)
+                os_, ns_ = fmt_price(old), fmt_price(f.price)
+                yy = top0 + ch_ * 0.68
+                p.d.text((xl, yy), os_, font=fo, fill=(160, 170, 188), anchor="lm")
+                wo = p.tw(os_, fo)
+                p.d.line((xl - 3, yy + 1, xl + wo + 3, yy + 1), fill=UP, width=5)
+                p.d.text((xl + wo + 30, yy), "→", font=p.font("extrabold", 34), fill=(190, 205, 225), anchor="mm")
+                p.d.text((xl + wo + 58, yy), ns_, font=fn_, fill=(60, 220, 120), anchor="lm")
+                lab = f"▼ −{pct:.0f} %"
+                fl = p.font("extrabold", 34)
+                lw = p.tw(lab, fl) + 40
+                p.d.rounded_rectangle((W - PAD - 34 - lw, top0 + ch_ / 2 - 28, W - PAD - 34, top0 + ch_ / 2 + 28), 28, fill=(22, 130, 64))
+                p.d.text((W - PAD - 34 - lw / 2, top0 + ch_ / 2), lab, font=fl, fill=(255, 255, 255), anchor="mm")
+                y += ch_ + GAP_C
+                continue
+            cx = W / 2
+            if len(items) > 1:
+                draw_medal(p.img, PAD + 72, top0 + 70 * k_ + 6, int(34 * max(k_, .7)), k + 1, fpath)
+                p.d = ImageDraw.Draw(p.img)
+            # Datum
+            p.d.text((cx, top0 + 62 * k_), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y} · {f.departure} Uhr",
+                     font=p.font("extrabold", int(44 * max(k_, .65))), fill=(255, 255, 255), anchor="mm")
+            # vorher → jetzt
+            yy = top0 + 200 * k_
+            fo = p.font("extrabold", int(62 * max(k_, .6)))
+            fn_ = p.font("extrabold", int(112 * max(k_, .55)))
+            os_, ns_ = fmt_price(old), fmt_price(f.price)
+            wo, wn, wa = p.tw(os_, fo), p.tw(ns_, fn_), int(70 * max(k_, .6))
+            xs = cx - (wo + wa + wn) / 2
+            p.d.text((xs, yy), os_, font=fo, fill=(160, 170, 188), anchor="lm")
+            p.d.line((xs - 4, yy + 2, xs + wo + 4, yy + 2), fill=UP, width=max(4, int(7 * k_)))
+            p.d.text((xs + wo + wa / 2, yy), "→", font=p.font("extrabold", int(58 * max(k_, .6))), fill=(190, 205, 225), anchor="mm")
+            p.d.text((xs + wo + wa, yy), ns_, font=fn_, fill=(60, 220, 120), anchor="lm")
+            fl_ = p.font("bold", int(26 * max(k_, .7)))
+            p.d.text((xs + wo / 2, yy + 62 * max(k_, .6)), when, font=fl_, fill=(150, 162, 180), anchor="mm")
+            p.d.text((xs + wo + wa + wn / 2, yy + 74 * max(k_, .55)), "jetzt", font=fl_, fill=(120, 210, 150), anchor="mm")
+            # Prozent-Plakette
+            lab = f"▼ −{pct:.0f} %  ·  {fmt_price(old - f.price)} günstiger"
+            fl = p.font("extrabold", int(36 * max(k_, .65)))
+            lw = p.tw(lab, fl) + 50
+            by = top0 + ch_ - 62 * max(k_, .6)
+            p.d.rounded_rectangle((cx - lw / 2, by - 30 * max(k_, .65), cx + lw / 2, by + 30 * max(k_, .65)), 30, fill=(22, 130, 64))
+            p.d.text((cx, by), lab, font=fl, fill=(255, 255, 255), anchor="mm")
+            y += ch_ + GAP_C
+        y += 10
     _footer(p, (f"Vergleich mit den Preisen von vor einer Woche ({WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y})"
                 if (today - prev_at.date()).days >= 7 else
                 f"Vergleich mit den Preisen vom {WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y}") + " · pro Person, Basic-Tarif"
