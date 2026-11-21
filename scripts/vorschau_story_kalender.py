@@ -550,7 +550,7 @@ def _header_sky(deco, kind, arc=True):
     """Kopf-Himmel für Sonder-Stories: 'nacht' (Sterne), 'tag' (blauer Himmel, Sonne, Wolken), 'gold' (Sonnenuntergang, Funkeln)."""
     dd = ImageDraw.Draw(deco)
     top, bot = {"nacht": ((40, 70, 140), (14, 28, 60)), "tag": ((96, 170, 236), (40, 104, 186)),
-                "gold": ((252, 196, 92), (168, 74, 96))}[kind]
+                "gold": ((252, 196, 92), (168, 74, 96)), "tuerkis": ((60, 190, 200), (24, 70, 120))}[kind]
     hgt = deco.size[1]
     for y in range(hgt):
         dd.line((0, y, W, y), fill=(*lerp(top, bot, y / hgt), 255))
@@ -946,6 +946,198 @@ def render_summary_feed(cfg, snap, months, now):
     p.d.text((W / 2, 1298), msg, font=p.fit(msg, "bold", 26, W - 2 * PAD), fill=(255, 255, 255), anchor="mm")
     ex = "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com · Unabhängige Infoseite, keine Verbindung zu Ryanair"
     p.d.text((W / 2, 1330), ex, font=p.fit(ex, "bold", 18, W - 2 * PAD), fill=(195, 205, 218), anchor="mm")
+    return p.img
+
+
+def _contrail(p, a, b, apex_y, plane_t=0.5):
+    """Flugbogen a→b: durchgezogener, auslaufender Kondensstreifen bis zum Flugzeug, danach gestrichelt, Pin am Ziel."""
+    t = p.t
+    ctrl = ((a[0] + b[0]) / 2, apex_y)
+
+    def B(u):
+        return ((1 - u) ** 2 * a[0] + 2 * (1 - u) * u * ctrl[0] + u ** 2 * b[0],
+                (1 - u) ** 2 * a[1] + 2 * (1 - u) * u * ctrl[1] + u ** 2 * b[1])
+    lay = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lay)
+    n = 80
+    for i in range(n):
+        u0, u1 = plane_t * i / n, plane_t * (i + 1) / n
+        k = (i + 1) / n
+        ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(50 + 205 * k)), width=int(3 + 7 * k))
+    u = plane_t + 0.06
+    while u < 0.94:
+        ld.line((B(u), B(min(u + 0.03, 0.94))), fill=(230, 238, 250, 235), width=5)
+        u += 0.05
+    glow = lay.filter(ImageFilter.GaussianBlur(6))
+    base = p.img.convert("RGBA")
+    base.alpha_composite(glow)
+    base.alpha_composite(lay)
+    p.img = base.convert("RGB")
+    p.d = ImageDraw.Draw(p.img)
+    p.d.ellipse((a[0] - 11, a[1] - 11, a[0] + 11, a[1] + 11), fill=t.accent, outline=(255, 255, 255), width=3)
+    p.d.ellipse((b[0] - 11, b[1] - 11, b[0] + 11, b[1] + 11), fill=t.green, outline=(255, 255, 255), width=3)
+    x, y = B(plane_t)
+    qx, qy = B(plane_t + 0.01)
+    p.d.ellipse((x - 50, y - 50, x + 50, y + 50), fill=(255, 255, 255))
+    p.d.ellipse((x - 45, y - 45, x + 45, y + 45), fill=t.accent)
+    p.plane(x, y, 46, math.degrees(math.atan2(qy - y, qx - x)), (255, 255, 255))
+
+
+def render_bestangebot(cfg, snap, now):
+    """Story 1 (Blickfang): der günstigste Hinflug Frankfurt-Hahn → Nador in den nächsten Monaten."""
+    from flightdeals.render.photo_alert import _cover, _photo
+    today = now.date()
+    outs = [f for f in snap.fares(cfg.route_out) if f.day >= today]
+    best = min(outs, key=lambda f: (f.price, f.day))
+    p = Painter(cfg)
+    t = p.t
+    ph = cfg["photos"]
+    pd_ = PROJ / "assets" / "photos"
+    top_img = _cover(_photo(str(pd_ / ph["origin_file"])), W, 1150, 0.55, 0.35).convert("RGBA")
+    bot_img = _cover(_photo(str(pd_ / ph["destination_file"])), W, 1150, 0.62, 0.6).convert("RGBA")
+    bg = Image.new("RGBA", (W, H), (8, 14, 26, 255))
+    bg.alpha_composite(top_img, (0, 0))
+    fade = Image.new("L", (W, 1150), 255)
+    fd = ImageDraw.Draw(fade)
+    for yy in range(380):
+        fd.line((0, yy, W, yy), fill=int(255 * yy / 380))
+    bot_img.putalpha(fade)
+    bg.alpha_composite(bot_img, (0, H - 1150))
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    for yy in range(H):
+        a_ = 150 - 80 * min(1, yy / 520) if yy < 760 else min(215, 70 + (yy - 760) * 0.25)
+        od.line((0, yy, W, yy), fill=(6, 12, 24, int(a_)))
+    bg.alpha_composite(ov)
+    p.img = bg.convert("RGB")
+    p.d = ImageDraw.Draw(p.img)
+
+    def shadow(xy, txt, font, fill, anchor="mm", off=3):
+        p.d.text((xy[0] + off, xy[1] + off), txt, font=font, fill=(0, 0, 0), anchor=anchor)
+        p.d.text(xy, txt, font=font, fill=fill, anchor=anchor)
+
+    # Kopf
+    lab = f"BESTPREIS · NÄCHSTE {N_MONATE} MONATE"
+    fl = p.font("extrabold", 30)
+    bw = p.tw(lab, fl) + 56
+    p.d.rounded_rectangle(((W - bw) / 2, 232, (W + bw) / 2, 288), 28, fill=GOLD)
+    p.d.text((W / 2, 260), lab, font=fl, fill=(40, 28, 6), anchor="mm")
+    shadow((W / 2, 372), "DER GÜNSTIGSTE", p.font("extrabold", 92), (255, 255, 255))
+    shadow((W / 2, 470), "FLUG NACH NADOR", p.font("extrabold", 92), (255, 255, 255))
+
+    # Flugbogen mit Städten
+    ya = 700
+    _contrail(p, (150, ya), (930, ya), 470, 0.5)
+    fcity = p.font("extrabold", 40)
+    p.flag("DE", 56, ya + 34, 30)
+    shadow((116, ya + 50), "Frankfurt-Hahn", fcity, (255, 255, 255), anchor="lm")
+    tw_ = p.tw("Nador", fcity)
+    shadow((W - 56 - 52 - tw_, ya + 50), "Nador", fcity, (255, 255, 255), anchor="lm")
+    p.flag("MA", W - 56 - 42, ya + 34, 30)
+
+    # Glas-Karte mit dem Angebot
+    cx0, cy0, cx1, cy1 = 48, 830, W - 48, 1520
+    reg = p.img.crop((cx0, cy0, cx1, cy1)).filter(ImageFilter.GaussianBlur(24)).convert("RGBA")
+    reg.alpha_composite(Image.new("RGBA", reg.size, (10, 20, 38, 175)))
+    m = Image.new("L", reg.size, 0)
+    ImageDraw.Draw(m).rounded_rectangle((0, 0, reg.width - 1, reg.height - 1), 36, fill=255)
+    p.img.paste(reg.convert("RGB"), (cx0, cy0), m)
+    p.d = ImageDraw.Draw(p.img)
+    p.d.rounded_rectangle((cx0, cy0, cx1, cy1), 36, outline=GOLD, width=5)
+    p.d.ellipse((W / 2 - 40, cy0 + 34, W / 2 + 40, cy0 + 114), fill=t.accent)
+    p.plane(W / 2, cy0 + 74, 34, -18, (255, 255, 255))
+    p.d.text((W / 2, cy0 + 150), "HINFLUG · NUR HIN, PRO PERSON", font=p.font("extrabold", 30), fill=(200, 214, 232), anchor="mm")
+    p.d.text((W / 2, cy0 + 222), f"{WOCHENTAGE[best.day.weekday()]}, {best.day:%d.%m.%Y}", font=p.font("extrabold", 58),
+             fill=(255, 255, 255), anchor="mm")
+    p.d.text((W / 2, cy0 + 290), f"Abflug {best.departure} Uhr · Frankfurt-Hahn → Nador", font=p.font("bold", 32),
+             fill=(214, 226, 240), anchor="mm")
+    price = fmt_price(best.price)
+    fp = p.font("extrabold", 210)
+    glow = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(glow).text((W / 2, cy0 + 470), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
+    base = p.img.convert("RGBA")
+    base.alpha_composite(glow.filter(ImageFilter.GaussianBlur(18)))
+    p.img = base.convert("RGB")
+    p.d = ImageDraw.Draw(p.img)
+    p.d.text((W / 2, cy0 + 470), price, font=fp, fill=(60, 220, 120), anchor="mm")
+    p.d.text((W / 2, cy0 + 620), "Basic-Tarif · nur 1 kleine Tasche (40×30×20 cm)", font=p.font("bold", 28),
+             fill=(200, 214, 232), anchor="mm")
+
+    chk = f"Preis bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
+    shadow((W / 2, 1580), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (255, 255, 255), off=2)
+    shadow((W / 2, 1626), "Der Preis kann sich im Laufe des Tages jederzeit ändern.", p.font("bold", 28), (225, 232, 242), off=2)
+    nxt = "Alle Preise und Termine in den nächsten Stories →"
+    fn = p.font("extrabold", 30)
+    nw = p.tw(nxt, fn) + 50
+    p.d.rounded_rectangle(((W - nw) / 2, 1664, (W + nw) / 2, 1716), 26, fill=t.accent)
+    p.d.text((W / 2, 1690), nxt, font=fn, fill=(255, 255, 255), anchor="mm")
+    p.d.text((W / 2, H - 50), cfg["photos"]["credit"], font=p.fit(cfg["photos"]["credit"], "bold", 16, W - 2 * PAD),
+             fill=(190, 200, 215), anchor="mm")
+    p.d.text((W / 2, H - 24), "Unabhängige Infoseite · keine Verbindung zu Ryanair · Buchung nur auf ryanair.com",
+             font=p.font("bold", 18), fill=(220, 228, 240), anchor="mm")
+    return p.img
+
+
+def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
+    """Story vor den Kalendern: Top 3 Hin- und Rückflüge, die seit gestern um mehr als min_pct % günstiger sind."""
+    today = now.date()
+    p = _frame(cfg, now, "PREISSTÜRZE",
+               f"Top 3 Hin- und Rückflüge, die seit gestern über {min_pct:.0f} % günstiger geworden sind", sky="tuerkis")
+    fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
+
+    def drops(route):
+        out = []
+        for f in snap.fares(route):
+            old = prev.get((route, f.day))
+            if f.day >= today and old and old > f.price:
+                pct = (old - f.price) / old * 100
+                if pct > min_pct:
+                    out.append((pct, f, old))
+        return sorted(out, key=lambda x: (-x[0], x[1].day))[:3]
+
+    y = 408
+    for label, route, outb, rt in (("HINFLUG", cfg.route_out, True, "Frankfurt-Hahn → Nador"),
+                                   ("RÜCKFLUG", cfg.route_ret, False, "Nador → Frankfurt-Hahn")):
+        p.d.ellipse((PAD, y, PAD + 54, y + 54), fill=p.t.accent)
+        p.plane(PAD + 27, y + 27, 23, -18 if outb else 198, (255, 255, 255))
+        p.d.text((PAD + 68, y + 27), label, font=p.font("extrabold", 40), fill=(255, 255, 255), anchor="lm")
+        p.d.text((PAD + 74 + p.tw(label, p.font("extrabold", 40)), y + 30), rt, font=p.font("bold", 26), fill=(190, 205, 225), anchor="lm")
+        y += 72
+        items = drops(route)
+        ch_ = 170
+        if not items:
+            hh = ch_
+            p.d.rounded_rectangle((PAD, y, W - PAD, y + hh), 20, fill=(18, 32, 54))
+            p.d.text((W / 2, y + hh / 2 - 22), f"Heute kein Preissturz über {min_pct:.0f} %", font=p.font("extrabold", 36),
+                     fill=(200, 212, 228), anchor="mm")
+            p.d.text((W / 2, y + hh / 2 + 26), "Die aktuellen Bestpreise findest du in den nächsten Stories →",
+                     font=p.font("bold", 26), fill=(150, 165, 185), anchor="mm")
+        for k in range(len(items)):
+            top = y + k * (ch_ + 12)
+            pct, f, old = items[k]
+            col = MEDALS[k + 1][1]
+            p.d.rounded_rectangle((PAD, top, W - PAD, top + ch_), 20, fill=(20, 38, 64), outline=col, width=4)
+            draw_medal(p.img, PAD + 58, top + ch_ / 2 + 6, 30, k + 1, fpath)
+            p.d = ImageDraw.Draw(p.img)
+            p.d.text((PAD + 118, top + 50), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y}", font=p.font("extrabold", 36),
+                     fill=(255, 255, 255), anchor="lm")
+            p.d.text((PAD + 118, top + 98), f"Abflug {f.departure} Uhr", font=p.font("bold", 26), fill=(190, 205, 225), anchor="lm")
+            fo = p.font("bold", 30)
+            os_ = fmt_price(old)
+            xo = PAD + 118
+            p.d.text((xo, top + 140), os_, font=fo, fill=(150, 162, 180), anchor="lm")
+            wo = p.tw(os_, fo)
+            p.d.line((xo - 3, top + 141, xo + wo + 3, top + 141), fill=UP, width=4)
+            p.d.text((xo + wo + 14, top + 140), f"am {prev_at:%d.%m.}" if prev_at else "vorher", font=p.font("bold", 22), fill=(150, 162, 180), anchor="lm")
+            p.d.text((W - PAD - 26, top + 72), fmt_price(f.price), font=p.font("extrabold", 58), fill=(60, 220, 120), anchor="rm")
+            lab = f"▼ −{pct:.0f} %"
+            fl = p.font("extrabold", 30)
+            lw = p.tw(lab, fl) + 30
+            p.d.rounded_rectangle((W - PAD - 26 - lw, top + 112, W - PAD - 26, top + 156), 22, fill=(22, 120, 60))
+            p.d.text((W - PAD - 26 - lw / 2, top + 134), lab, font=fl, fill=(255, 255, 255), anchor="mm")
+        y += max(1, len(items)) * (ch_ + 12) + 30
+    _footer(p, f"Vergleich mit den Preisen vom {prev_at:%d.%m.%Y, %H:%M} Uhr · pro Person (Basic-Tarif) · Buchung nur auf ryanair.com"
+            if prev_at else "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com")
     return p.img
 
 
