@@ -992,18 +992,23 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
     p.plane(x, y, 46, math.degrees(math.atan2(qy - y, qx - x)), (255, 255, 255))
 
 
-def render_bestangebot(cfg, snap, now):
-    """Story 1 (Blickfang): der günstigste Hinflug Frankfurt-Hahn → Nador in den nächsten Monaten."""
+def render_bestangebot(cfg, snap, now, rueck=False):
+    """Blickfang-Story: günstigster Hinflug (Frankfurt-Hahn → Nador) bzw. mit rueck=True günstigster Rückflug
+    (Nador → Frankfurt-Hahn) in den nächsten Monaten. Abflugort immer links, Ziel rechts mit Pfeil."""
     from flightdeals.render.photo_alert import _cover, _photo
     today = now.date()
-    outs = [f for f in snap.fares(cfg.route_out) if f.day >= today]
+    route = cfg.route_ret if rueck else cfg.route_out
+    outs = [f for f in snap.fares(route) if f.day >= today]
+    src_city, dst_city = ("Nador", "Frankfurt-Hahn") if rueck else ("Frankfurt-Hahn", "Nador")
+    src_flag, dst_flag = ("MA", "DE") if rueck else ("DE", "MA")
     best = min(outs, key=lambda f: (f.price, f.day))
     p = Painter(cfg)
     t = p.t
     ph = cfg["photos"]
     pd_ = PROJ / "assets" / "photos"
-    left = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H, 0.55, 0.4).convert("RGBA")
-    right = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H, 0.62, 0.55).convert("RGBA")
+    fra = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H, 0.55, 0.4).convert("RGBA")
+    ndr = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H, 0.62, 0.55).convert("RGBA")
+    left, right = (ndr, fra) if rueck else (fra, ndr)
     bg = Image.new("RGBA", (W, H), (8, 14, 26, 255))
     bg.alpha_composite(left, (0, 0))
     mask = Image.new("L", right.size, 255)
@@ -1031,18 +1036,21 @@ def render_bestangebot(cfg, snap, now):
     bw = p.tw(lab, fl) + 56
     p.d.rounded_rectangle(((W - bw) / 2, 232, (W + bw) / 2, 288), 28, fill=GOLD)
     p.d.text((W / 2, 260), lab, font=fl, fill=(40, 28, 6), anchor="mm")
-    shadow((W / 2, 372), "DER GÜNSTIGSTE", p.font("extrabold", 92), (255, 255, 255))
-    shadow((W / 2, 470), "FLUG NACH NADOR", p.font("extrabold", 92), (255, 255, 255))
+    l1 = "DER GÜNSTIGSTE"
+    l2 = "RÜCKFLUG NACH HAHN" if rueck else "FLUG NACH NADOR"
+    ft2 = p.fit(l2, "extrabold", 92, W - 2 * PAD - 20)
+    shadow((W / 2, 372), l1, ft2, (255, 255, 255))
+    shadow((W / 2, 470), l2, ft2, (255, 255, 255))
 
     # Flugbogen mit Städten
     ya = 700
     _contrail(p, (150, ya), (930, ya), 470, 0.5)
     fcity = p.font("extrabold", 40)
-    p.flag("DE", 56, ya + 34, 30)
-    shadow((116, ya + 50), "Frankfurt-Hahn", fcity, (255, 255, 255), anchor="lm")
-    tw_ = p.tw("Nador", fcity)
-    shadow((W - 56 - 52 - tw_, ya + 50), "Nador", fcity, (255, 255, 255), anchor="lm")
-    p.flag("MA", W - 56 - 42, ya + 34, 30)
+    p.flag(src_flag, 56, ya + 34, 30)
+    shadow((116, ya + 50), src_city, fcity, (255, 255, 255), anchor="lm")
+    tw_ = p.tw(dst_city, fcity)
+    shadow((W - 56 - 52 - tw_, ya + 50), dst_city, fcity, (255, 255, 255), anchor="lm")
+    p.flag(dst_flag, W - 56 - 42, ya + 34, 30)
 
     # Glas-Karte mit dem Angebot
     cx0, cy0, cx1, cy1 = 48, 830, W - 48, 1520
@@ -1055,10 +1063,10 @@ def render_bestangebot(cfg, snap, now):
     p.d.rounded_rectangle((cx0, cy0, cx1, cy1), 36, outline=GOLD, width=5)
     p.d.ellipse((W / 2 - 40, cy0 + 34, W / 2 + 40, cy0 + 114), fill=t.accent)
     p.plane(W / 2, cy0 + 74, 34, -18, (255, 255, 255))
-    p.d.text((W / 2, cy0 + 150), "HINFLUG · NUR HIN, PRO PERSON", font=p.font("extrabold", 30), fill=(200, 214, 232), anchor="mm")
+    p.d.text((W / 2, cy0 + 150), "RÜCKFLUG · EINFACHE STRECKE, PRO PERSON" if rueck else "HINFLUG · EINFACHE STRECKE, PRO PERSON", font=p.font("extrabold", 30), fill=(200, 214, 232), anchor="mm")
     p.d.text((W / 2, cy0 + 222), f"{WOCHENTAGE[best.day.weekday()]}, {best.day:%d.%m.%Y}", font=p.font("extrabold", 58),
              fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, cy0 + 290), f"Abflug {best.departure} Uhr · Frankfurt-Hahn → Nador", font=p.font("bold", 32),
+    p.d.text((W / 2, cy0 + 290), f"Abflug {best.departure} Uhr · {src_city} → {dst_city}", font=p.font("bold", 32),
              fill=(214, 226, 240), anchor="mm")
     price = fmt_price(best.price)
     fp = p.font("extrabold", 210)
@@ -1106,11 +1114,6 @@ def week_ago_prices(today):
 def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
     """Story vor den Kalendern: Top 3 Hin- und Rückflüge, die seit gestern um mehr als min_pct % günstiger sind."""
     today = now.date()
-    p = _frame(cfg, now, "PREISSTÜRZE",
-               ((f"Top 3, die seit einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}) über {min_pct:.0f} % günstiger wurden"
-                 if (today - prev_at.date()).days >= 7 else
-                 f"Top 3, die seit {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.%Y} über {min_pct:.0f} % günstiger wurden")
-                if prev_at else f"Top 3 mit über {min_pct:.0f} % Preissenkung"), sky="tuerkis")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
 
     def drops(route):
@@ -1123,16 +1126,26 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
                     out.append((pct, f, old))
         return sorted(out, key=lambda x: (-x[0], x[1].day))[:3]
 
-    y = 408
-    for label, route, outb, rt in (("HINFLUG", cfg.route_out, True, "Frankfurt-Hahn → Nador"),
-                                   ("RÜCKFLUG", cfg.route_ret, False, "Nador → Frankfurt-Hahn")):
+    sections = [(lab_, r_, ob, rt_, drops(r_)) for lab_, r_, ob, rt_ in
+                (("HINFLUG", cfg.route_out, True, "Frankfurt-Hahn → Nador"), ("RÜCKFLUG", cfg.route_ret, False, "Nador → Frankfurt-Hahn"))]
+    sections = [x for x in sections if x[4]]
+    if not sections:
+        return None                                       # nichts gefallen → heute keine Story
+    p = _frame(cfg, now, "PREISSTÜRZE",
+               ((f"Top 3, die seit einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}) über {min_pct:.0f} % günstiger wurden"
+                 if (today - prev_at.date()).days >= 7 else
+                 f"Top 3, die seit {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.%Y} über {min_pct:.0f} % günstiger wurden")
+                if prev_at else f"Top 3 mit über {min_pct:.0f} % Preissenkung"), sky="tuerkis")
+    n_items = sum(len(x[4]) for x in sections)
+    ch_ = int(min(230, (1640 - 420 - len(sections) * 102) / n_items - 12))
+    total = len(sections) * 102 + n_items * (ch_ + 12)
+    y = 420 + max(0, (1660 - 420 - total) / 2)               # Inhalt vertikal mittig
+    for label, route, outb, rt, items in sections:
         p.d.ellipse((PAD, y, PAD + 54, y + 54), fill=p.t.accent)
         p.plane(PAD + 27, y + 27, 23, -18 if outb else 198, (255, 255, 255))
         p.d.text((PAD + 68, y + 27), label, font=p.font("extrabold", 40), fill=(255, 255, 255), anchor="lm")
         p.d.text((PAD + 74 + p.tw(label, p.font("extrabold", 40)), y + 30), rt, font=p.font("bold", 26), fill=(190, 205, 225), anchor="lm")
         y += 72
-        items = drops(route)
-        ch_ = 170
         if not items:
             hh = ch_
             p.d.rounded_rectangle((PAD, y, W - PAD, y + hh), 20, fill=(18, 32, 54))
@@ -1141,11 +1154,12 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
             p.d.text((W / 2, y + hh / 2 + 26), "Die aktuellen Bestpreise findest du in den nächsten Stories →",
                      font=p.font("bold", 26), fill=(150, 165, 185), anchor="mm")
         for k in range(len(items)):
-            top = y + k * (ch_ + 12)
+            top0 = y + k * (ch_ + 12)
+            top = top0 + (ch_ - 170) / 2
             pct, f, old = items[k]
             col = MEDALS[k + 1][1]
-            p.d.rounded_rectangle((PAD, top, W - PAD, top + ch_), 20, fill=(20, 38, 64), outline=col, width=4)
-            draw_medal(p.img, PAD + 58, top + ch_ / 2 + 6, 30, k + 1, fpath)
+            p.d.rounded_rectangle((PAD, top0, W - PAD, top0 + ch_), 20, fill=(20, 38, 64), outline=col, width=4)
+            draw_medal(p.img, PAD + 58, top0 + ch_ / 2 + 6, 30, k + 1, fpath)
             p.d = ImageDraw.Draw(p.img)
             p.d.text((PAD + 118, top + 50), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y}", font=p.font("extrabold", 36),
                      fill=(255, 255, 255), anchor="lm")
