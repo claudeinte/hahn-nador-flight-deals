@@ -26,6 +26,7 @@ from flightdeals.render.common import Painter  # noqa: E402
 from flightdeals.texts import MONATE, WOCHENTAGE, fmt_price  # noqa: E402
 
 W, H = 1080, 1920
+N_MONATE = 11                         # Kalender pro Tag: aktueller Monat + 10 folgende
 PAD, G = 12, 4                        # Seitenrand, Abstand zwischen Zellen
 GOLD = (245, 197, 66)
 UP, DOWN, SAME, NEW = (240, 82, 82), (34, 197, 94), (160, 170, 185), (76, 154, 255)
@@ -511,7 +512,7 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
     return p.img
 
 
-def story_view(img, cfg, idx=1, n=10):
+def story_view(img, cfg, idx=1, n=N_MONATE + 1):
     """Vorschau wie in der Story-Ansicht (Instagram-Bedienelemente simuliert), halbe Größe."""
     p = Painter(cfg)
     m = img.convert("RGBA")
@@ -585,8 +586,8 @@ def render_summary(cfg, snap, months, now):
     p.plane(lx, ly, 56, -35, (255, 255, 255))
     p.d.text((PAD + 2, 292), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
              font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="lm")
-    p.d.text((PAD + 2, 336), "Die günstigsten Hin- und Rückflüge der nächsten 9 Monate",
-             font=p.fit("Die günstigsten Hin- und Rückflüge der nächsten 9 Monate", "bold", 27, W - 2 * PAD - 8),
+    sub = f"Die günstigsten Hin- und Rückflüge der nächsten {len(months)} Monate"
+    p.d.text((PAD + 2, 336), sub, font=p.fit(sub, "bold", 27, W - 2 * PAD - 8),
              fill=(190, 205, 225), anchor="lm")
 
     rows = []
@@ -627,23 +628,26 @@ def render_summary(cfg, snap, months, now):
         x += w_ + gap
 
     top, bottom = 462, 1716
-    rh = (bottom - top - 8 * 8) / 9
+    n = len(rows)
+    gp = 6 if n > 9 else 8
+    rh = (bottom - top - gp * (n - 1)) / n
+    k = min(1.0, rh / 136)              # Schrift an Zeilenhöhe anpassen
     for i, ((y_, m_), fo, fr) in enumerate(rows):
-        yy = top + i * (rh + 8)
+        yy = top + i * (rh + gp)
         th = THEMES[m_]
         p.d.rounded_rectangle((PAD, yy, W - PAD, yy + rh), 16, fill=th["cell"])
         p.d.rounded_rectangle((PAD, yy, PAD + 12, yy + rh), 6, fill=th["accent"])
-        p.d.text((PAD + 30, yy + rh / 2 - 16), MONATE[m_ - 1], font=p.font("extrabold", 36), fill=(255, 255, 255), anchor="lm")
-        p.d.text((PAD + 30, yy + rh / 2 + 24), str(y_), font=p.font("bold", 24), fill=(185, 198, 215), anchor="lm")
+        p.d.text((PAD + 30, yy + rh / 2 - 16 * k), MONATE[m_ - 1], font=p.font("extrabold", int(36 * k)), fill=(255, 255, 255), anchor="lm")
+        p.d.text((PAD + 30, yy + rh / 2 + 24 * k), str(y_), font=p.font("bold", int(24 * k)), fill=(185, 198, 215), anchor="lm")
         for x_, f in ((col1, fo), (col2, fr)):
             if not f:
                 p.d.text((x_ + 120, yy + rh / 2), "–", font=p.font("bold", 40), fill=(110, 120, 135), anchor="mm")
                 continue
             col = band(f.price)
             p.d.rounded_rectangle((x_ - 10, yy + 12, x_ - 4, yy + rh - 12), 3, fill=col)
-            p.d.text((x_ + 6, yy + rh / 2 - 12), fmt_price(f.price), font=p.font("extrabold", 48), fill=col, anchor="lm")
-            p.d.text((x_ + 8, yy + rh / 2 + 30), f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.} · {f.departure} Uhr",
-                     font=p.font("semibold", 23), fill=(205, 214, 228), anchor="lm")
+            p.d.text((x_ + 6, yy + rh / 2 - 13 * k), fmt_price(f.price), font=p.font("extrabold", int(48 * k)), fill=col, anchor="lm")
+            p.d.text((x_ + 8, yy + rh / 2 + 30 * k), f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.} · {f.departure} Uhr",
+                     font=p.font("semibold", max(19, int(23 * k))), fill=(205, 214, 228), anchor="lm")
 
     y = bottom + 30
     p.d.text((W / 2, y), "Die Flugpreise können sich im Laufe des Tages jederzeit ändern.",
@@ -659,7 +663,7 @@ def render_summary(cfg, snap, months, now):
 
 def main_alle(testdaten=False):
     cfg = load_config()
-    cfg["route"]["months_ahead"] = 10
+    cfg["route"]["months_ahead"] = N_MONATE
     now = cfg.now()
     snap = fetch_all(cfg, now)
     bad = [k for k, m in snap.months.items() if not m.ok]
@@ -669,7 +673,7 @@ def main_alle(testdaten=False):
     pickle.dump(snap, open(PROJ / "data" / "snapshots" / now.strftime("%Y-%m-%d_%H%M.pkl"), "wb"))
     prev, prev_at = previous_day_prices(now.date())
     print("Vergleich mit Preisstand vom", prev_at)
-    months = next_months(now.date(), 9)
+    months = next_months(now.date(), N_MONATE)
     out = PROJ / "output" / "stories" / now.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
     imgs = [render_summary(cfg, snap, months, now)]
@@ -679,9 +683,11 @@ def main_alle(testdaten=False):
         im.save(out / f"{i:02d}_kalender_{y_}-{m_:02d}.png")
         imgs.append(im)
     # Übersichtsblatt aller 10 Stories
-    sheet = Image.new("RGB", (5 * 216 + 6 * 12, 2 * 384 + 3 * 12), (30, 30, 34))
+    cols = 6
+    rows_ = (len(imgs) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * 228 + 12, rows_ * 396 + 12), (30, 30, 34))
     for k, im in enumerate(imgs):
-        sheet.paste(im.resize((216, 384), Image.LANCZOS), (12 + (k % 5) * 228, 12 + (k // 5) * 396))
+        sheet.paste(im.resize((216, 384), Image.LANCZOS), (12 + (k % cols) * 228, 12 + (k // cols) * 396))
     sheet.save(out / "00_alle_stories.png")
     story_view(imgs[0], cfg, 1).save(out / "ansicht_01.png")
     print(out)
@@ -692,7 +698,7 @@ if __name__ == "__main__":
         main_alle("--testdaten" in sys.argv)
     else:
         cfg_ = load_config()
-        cfg_["route"]["months_ahead"] = 10
+        cfg_["route"]["months_ahead"] = N_MONATE
         now_ = cfg_.now()
         snap_ = fetch_all(cfg_, now_)
         prev_, _ = previous_day_prices(now_.date())

@@ -1,7 +1,7 @@
 name: Tages-Stories (Instagram + Facebook)
 
 # Start: von Hand unter "Actions" oder per cron-job.org (workflow_dispatch über die GitHub-API).
-# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 10 Stories auf IG und FB.
+# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 12 Stories auf IG und FB.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +25,7 @@ jobs:
     env:
       PYTHONPATH: src
       TZ: Europe/Berlin
+      ANZAHL: "12"          # 1 Übersicht + 11 Monatskalender
     steps:
       - uses: actions/checkout@v4
 
@@ -46,13 +47,14 @@ jobs:
           d = sys.argv[1]; p = pathlib.Path("data/stories_veroeffentlicht.json")
           st = json.loads(p.read_text()) if p.exists() else {}
           day = st.get(d, {})
-          fertig = len(day.get("instagram", [])) == 10 and len(day.get("facebook", [])) == 10
+          n = int(os.environ["ANZAHL"])
+          fertig = len(day.get("instagram", [])) >= n and len(day.get("facebook", [])) >= n
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"fertig={'ja' if fertig else 'nein'}\n")
           print("Heute schon komplett veröffentlicht:" , fertig)
           EOF
 
-      - name: Preise abfragen und 10 Story-Bilder erstellen
+      - name: Preise abfragen und 12 Story-Bilder erstellen
         if: steps.tag.outputs.fertig == 'nein'
         run: python scripts/vorschau_story_kalender.py --alle
 
@@ -66,7 +68,8 @@ jobs:
           from PIL import Image
           d = sys.argv[1]
           src = sorted(f for f in pathlib.Path(f"output/stories/{d}").glob("[0-9][0-9]_*.png") if not f.name.startswith("00_"))
-          assert len(src) == 10, f"{len(src)} Bilder statt 10"
+          n = int(__import__("os").environ["ANZAHL"])
+          assert len(src) == n, f"{len(src)} Bilder statt {n}"
           for f in src:
               Image.open(f).convert("RGB").save(f"public/{d}/{f.stem}.jpg", "JPEG", quality=92, optimize=True)
           print("JPEG:", [f.stem for f in src])
@@ -94,7 +97,7 @@ jobs:
           STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
         run: >
           python scripts/stories_publish.py --ordner public/${{ steps.tag.outputs.datum }}
-          --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }}
+          --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
       - name: Preisverlauf und Veröffentlichungs-Protokoll speichern
         if: always()

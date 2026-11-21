@@ -1,4 +1,4 @@
-"""Veröffentlicht die Tages-Stories (output/stories/<datum>/01…10) als STORIES auf Instagram und Facebook.
+"""Veröffentlicht die Tages-Stories (output/stories/<datum>/01…NN) als STORIES auf Instagram und Facebook.
 
 Nur offizielle Meta Graph API (v27.0):
   Instagram: POST /{ig-id}/media (image_url, media_type=STORIES) → Status prüfen → POST /{ig-id}/media_publish
@@ -134,10 +134,11 @@ def main():
     ap.add_argument("--datum", required=True)
     ap.add_argument("--modus", choices=["test", "veroeffentlichen"], default="test")
     ap.add_argument("--base-url", default=os.environ.get("STORY_BASE_URL", ""))
+    ap.add_argument("--anzahl", type=int, default=12, help="erwartete Anzahl Stories (1 Übersicht + Monate)")
     a = ap.parse_args()
     files = sorted(f for f in Path(a.ordner).glob("[0-9][0-9]_*.jpg") if not f.name.startswith("00_"))
-    if len(files) != 10:
-        sys.exit(f"Erwartet 10 Story-Bilder, gefunden {len(files)} – nichts veröffentlicht.")
+    if len(files) != a.anzahl:
+        sys.exit(f"Erwartet {a.anzahl} Story-Bilder, gefunden {len(files)} – nichts veröffentlicht.")
     print("Stories:", ", ".join(f.name for f in files))
     if a.modus == "test":
         print("TESTMODUS: nichts veröffentlicht.")
@@ -154,7 +155,7 @@ def main():
             fehler.append(f"{name}: {e}")
             print(f"  ❌ {name}: {e}")
         save_state(st)
-    print(f"Instagram {len(day.get('instagram', []))}/10 · Facebook {len(day.get('facebook', []))}/10")
+    print(f"Instagram {len(day.get('instagram', []))}/{a.anzahl} · Facebook {len(day.get('facebook', []))}/{a.anzahl}")
     if fehler:
         sys.exit("Fehler: " + " | ".join(fehler))
 
