@@ -1,12 +1,8 @@
 name: Flugpreise Hahn – Nador
 
 on:
-  schedule:
-    # Alle 6 Stunden Preise aktualisieren (Minute 17, weil GitHub volle Stunden oft verzögert)
-    - cron: "17 */6 * * *"
-    # Täglicher Beitrag um 08:00 Europe/Berlin: 06:03 UTC (Sommerzeit) bzw. 07:03 UTC (Winterzeit).
-    # Das Skript prüft selbst die Berliner Uhrzeit und erstellt den Beitrag nur einmal pro Tag.
-    - cron: "3 6,7 * * *"
+  # Kein GitHub-"schedule" (wird oft verzögert/ausgelassen): gestartet wird per cron-job.org
+  # über die GitHub-API (workflow_dispatch) – oder von Hand unter "Actions".
   workflow_dispatch:
     inputs:
       aktion:
