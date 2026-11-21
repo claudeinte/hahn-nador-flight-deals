@@ -599,7 +599,6 @@ def render_summary(cfg, snap, months, now):
     def ranks(idx):
         ok = sorted([(r[idx].price, r[idx].day, i) for i, r in enumerate(rows) if r[idx]])[:3]
         return {i: k + 1 for k, (_, _, i) in enumerate(ok)}
-    r_out, r_ret = ranks(1), ranks(2)
 
     # Spaltenköpfe
     col1, col2 = 330, 700
@@ -611,7 +610,23 @@ def render_summary(cfg, snap, months, now):
         p.flag_pair(route, x_ + 52 + p.tw(lab, p.font("extrabold", 30)) + 10, hy - 10, 20)
     p.d.text((PAD + 6, hy), "MONAT", font=p.font("extrabold", 26), fill=(170, 185, 205), anchor="lm")
 
-    top, bottom = 420, 1716
+    # Preisfarben (nur in dieser Übersicht): <25 grün · 25–49,99 gelb · 50–100 orange · >100 rot
+    BANDS = [((34, 197, 94), "unter 25 €"), ((250, 204, 21), "25 – 49,99 €"), ((251, 146, 60), "50 – 100 €"),
+             ((240, 82, 82), "über 100 €")]
+
+    def band(pr):
+        return BANDS[0][0] if pr < 25 else BANDS[1][0] if pr < 50 else BANDS[2][0] if pr <= 100 else BANDS[3][0]
+
+    fl = p.font("bold", 24)
+    widths = [30 + p.tw(lab, fl) for _, lab in BANDS]
+    gap = (W - 2 * PAD - 12 - sum(widths)) / (len(BANDS) - 1)
+    x, ly2 = PAD + 6, 436
+    for (col, lab), w_ in zip(BANDS, widths):
+        p.d.ellipse((x, ly2 - 11, x + 22, ly2 + 11), fill=col)
+        p.d.text((x + 30, ly2), lab, font=fl, fill=col, anchor="lm")
+        x += w_ + gap
+
+    top, bottom = 462, 1716
     rh = (bottom - top - 8 * 8) / 9
     for i, ((y_, m_), fo, fr) in enumerate(rows):
         yy = top + i * (rh + 8)
@@ -620,17 +635,15 @@ def render_summary(cfg, snap, months, now):
         p.d.rounded_rectangle((PAD, yy, PAD + 12, yy + rh), 6, fill=th["accent"])
         p.d.text((PAD + 30, yy + rh / 2 - 16), MONATE[m_ - 1], font=p.font("extrabold", 36), fill=(255, 255, 255), anchor="lm")
         p.d.text((PAD + 30, yy + rh / 2 + 24), str(y_), font=p.font("bold", 24), fill=(185, 198, 215), anchor="lm")
-        for x_, f, rk in ((col1, fo, r_out.get(i)), (col2, fr, r_ret.get(i))):
+        for x_, f in ((col1, fo), (col2, fr)):
             if not f:
                 p.d.text((x_ + 120, yy + rh / 2), "–", font=p.font("bold", 40), fill=(110, 120, 135), anchor="mm")
                 continue
-            if rk:
-                p.d.rounded_rectangle((x_ - 10, yy + 8, x_ + 350, yy + rh - 8), 12, outline=MEDALS[rk][1], width=4)
-                draw_medal(p.img, x_ + 316, yy + rh / 2 + 2, 20, rk, fpath)
-                p.d = ImageDraw.Draw(p.img)
-            p.d.text((x_ + 6, yy + rh / 2 - 12), fmt_price(f.price), font=p.font("extrabold", 46), fill=(255, 255, 255), anchor="lm")
+            col = band(f.price)
+            p.d.rounded_rectangle((x_ - 10, yy + 12, x_ - 4, yy + rh - 12), 3, fill=col)
+            p.d.text((x_ + 6, yy + rh / 2 - 12), fmt_price(f.price), font=p.font("extrabold", 48), fill=col, anchor="lm")
             p.d.text((x_ + 8, yy + rh / 2 + 30), f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.} · {f.departure} Uhr",
-                     font=p.font("semibold", 23), fill=(200, 210, 225), anchor="lm")
+                     font=p.font("semibold", 23), fill=(205, 214, 228), anchor="lm")
 
     y = bottom + 30
     p.d.text((W / 2, y), "Die Flugpreise können sich im Laufe des Tages jederzeit ändern.",
