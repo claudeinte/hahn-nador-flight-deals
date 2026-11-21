@@ -1,15 +1,19 @@
 """VORSCHAU (nur Entwurf, nichts wird veröffentlicht): Story-Kalender 1080×1920 für einen Monat.
-Echte aktuelle Preise; die Veränderungen zum Vortag sind TESTDATEN, solange es noch keinen
-gespeicherten Preisstand vom Vortag für diesen Monat gibt (wird im Bild deutlich angezeigt).
 
-Aufruf: .venv/bin/python scripts/vorschau_story_kalender.py 2027-08
+Aufruf:
+    .venv/bin/python scripts/vorschau_story_kalender.py 2026-11              # echte Veränderungen zum Vortag
+    .venv/bin/python scripts/vorschau_story_kalender.py 2027-08 --testdaten  # Beispiel-Veränderungen (im Bild markiert)
+
+Veränderung = aktueller Preis minus Preis desselben Flugs im letzten gespeicherten Preisstand vom VORTAG
+(data/snapshots/). Gibt es dort keinen Preis → „NEU“.
 """
 import calendar as pycal
+import glob
 import hashlib
 import math
 import pickle
+import random
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -22,84 +26,137 @@ from flightdeals.render.common import Painter  # noqa: E402
 from flightdeals.texts import MONATE, WOCHENTAGE, fmt_price  # noqa: E402
 
 W, H = 1080, 1920
-PAD = 20
+PAD, G = 12, 4                        # Seitenrand, Abstand zwischen Zellen
 GOLD = (245, 197, 66)
-UP, DOWN, SAME, NEW = (240, 82, 82), (34, 197, 94), (150, 160, 175), (76, 154, 255)
+UP, DOWN, SAME, NEW = (240, 82, 82), (34, 197, 94), (160, 170, 185), (76, 154, 255)
+PAST_BG, PAST_FG = (38, 42, 50), (92, 98, 110)
 
-# Monats-Themen (Deko-Farben bewusst ohne reines Grün/Rot, damit sie nicht mit ▲/▼ verwechselt werden)
+# Monats-Themen. Deko-Farben bewusst ohne kräftiges Grün/Rot (Verwechslung mit ▼/▲ vermeiden).
 THEMES = {
-    8: dict(name="Mittelmeer", sky=((70, 160, 225), (20, 80, 150)), sea=((20, 120, 185), (10, 70, 125)),
+    11: dict(deco="herbst", sky=((150, 92, 40), (70, 40, 26)), ground=((92, 58, 32), (52, 34, 22)),
+             body=((30, 20, 16), (14, 10, 9)), cell=(48, 34, 26), cell_off=(32, 24, 19), accent=(232, 150, 60),
+             leaves=[(236, 160, 60), (214, 120, 40), (246, 196, 90), (170, 100, 50)]),
+    8: dict(deco="strand", sky=((70, 160, 225), (20, 80, 150)), sea=((20, 120, 185), (10, 70, 125)),
             sand=(226, 196, 140), body=((10, 26, 46), (6, 14, 26)), cell=(18, 38, 62), cell_off=(12, 26, 44),
             accent=(90, 180, 255)),
 }
+DECO_END = 156                        # bis hier reicht die Kopf-Deko (liegt hinter der Instagram-Leiste)
 
 
 def lerp(a, b, t):
+    t = max(0.0, min(1.0, t))
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def _palm(dd, x, by, h, lean, s, col):
+    pts = [(x + lean * (i / 10) ** 2, by - h * i / 10) for i in range(11)]
+    dd.line(pts, fill=col, width=int(11 * s), joint="curve")
+    tx, ty = pts[-1]
+    for ang, ln in ((-165, 80), (-135, 88), (-100, 62), (-62, 84), (-25, 90), (12, 74), (165, 70)):
+        a = math.radians(ang)
+        L = ln * s
+        mx, my = tx + L * .5 * math.cos(a), ty + L * .5 * math.sin(a) - 13 * s
+        ex, ey = tx + L * math.cos(a), ty + L * math.sin(a) + 20 * s
+        nx, ny = -math.sin(a) * 9 * s, math.cos(a) * 9 * s
+        dd.polygon([(tx, ty), (mx + nx, my + ny), (ex, ey), (mx - nx, my - ny)], fill=col)
+
+
+def _leaf(dd, x, y, size, ang, col):
+    a = math.radians(ang)
+    pts = []
+    for k in range(13):
+        t = k / 12 * 2 * math.pi
+        px, py = math.cos(t) * size, math.sin(t) * size * 0.45
+        pts.append((x + px * math.cos(a) - py * math.sin(a), y + px * math.sin(a) + py * math.cos(a)))
+    dd.polygon(pts, fill=col)
+    dd.line((x - size * math.cos(a), y - size * math.sin(a), x + size * math.cos(a), y + size * math.sin(a)),
+            fill=tuple(max(0, c - 60) for c in col[:3]) + (col[3],), width=2)
+
+
+def deco_strand(th, deco):
+    dd = ImageDraw.Draw(deco)
+    for y in range(98):
+        dd.line((0, y, W, y), fill=(*lerp(*th["sky"], y / 98), 255))
+    cx, cy, r = 800, 56, 38
+    glow = Image.new("RGBA", deco.size, (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse((cx - 120, cy - 120, cx + 120, cy + 120), fill=(255, 230, 150, 120))
+    deco.alpha_composite(glow.filter(ImageFilter.GaussianBlur(40)))
+    dd = ImageDraw.Draw(deco)
+    for j in range(r, 0, -1):
+        dd.ellipse((cx - j, cy - j, cx + j, cy + j), fill=(*lerp((255, 248, 200), (255, 196, 60), j / r), 255))
+    for y in range(98, 130):
+        dd.line((0, y, W, y), fill=(*lerp(*th["sea"], (y - 98) / 32), 255))
+    for i, y in enumerate(range(101, 128, 6)):
+        dd.line((cx - 38 + i * 6, y, cx + 38 - i * 6, y), fill=(255, 240, 180, 170 - i * 30), width=3)
+    for x0 in range(-60, W, 120):
+        dd.arc((x0, 124, x0 + 120, 136), 200, 340, fill=(255, 255, 255, 200), width=3)
+    for y in range(130, DECO_END):
+        dd.line((0, y, W, y), fill=(*th["sand"], 255))
+    _palm(dd, 1005, 150, 84, -24, 0.66, (20, 28, 40, 255))
+    _palm(dd, 66, 150, 64, 14, 0.52, (20, 28, 40, 255))
+
+
+def deco_herbst(th, deco):
+    dd = ImageDraw.Draw(deco)
+    for y in range(DECO_END):
+        dd.line((0, y, W, y), fill=(*lerp(*th["sky"], y / DECO_END), 255))
+    glow = Image.new("RGBA", deco.size, (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse((620, -60, 980, 200), fill=(255, 190, 110, 90))
+    deco.alpha_composite(glow.filter(ImageFilter.GaussianBlur(50)))
+    dd = ImageDraw.Draw(deco)
+    # Hügel
+    for k, (base, amp, col) in enumerate(((116, 20, th["ground"][0]), (136, 14, th["ground"][1]))):
+        pts = [(x, base - amp * math.sin(x / 170 + k * 1.7)) for x in range(0, W + 10, 10)]
+        dd.polygon(pts + [(W, DECO_END), (0, DECO_END)], fill=(*col, 255))
+    # Baum rechts
+    tc = (40, 26, 18, 255)
+    dd.line((990, 156, 985, 80), fill=tc, width=12)
+    for (x1, y1, x2, y2) in ((986, 110, 940, 70), (987, 96, 1035, 62), (985, 84, 960, 40), (986, 88, 1010, 35)):
+        dd.line((x1, y1, x2, y2), fill=tc, width=6)
+    rnd = random.Random(11)
+    for _ in range(46):                                  # Laub im Baum
+        x, y = 985 + rnd.randint(-75, 70), 55 + rnd.randint(-35, 35)
+        _leaf(dd, x, y, rnd.randint(9, 14), rnd.randint(0, 180), (*rnd.choice(th["leaves"]), 255))
+    for _ in range(26):                                  # fallende Blätter
+        x, y = rnd.randint(0, 900), rnd.randint(10, 140)
+        _leaf(dd, x, y, rnd.randint(7, 12), rnd.randint(0, 180), (*rnd.choice(th["leaves"]), 220))
 
 
 def background(th):
     img = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(img)
-    for y in range(H):                                   # Körper: dunkler Verlauf
+    for y in range(H):
         d.line((0, y, W, y), fill=lerp(*th["body"], y / H))
-    # Kopf-Deko 0–300: Himmel, Sonne, Meer, Strand, Palmen (liegt teils unter der Instagram-Leiste – nur Deko)
-    deco = Image.new("RGBA", (W, 230), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(deco)
-    for y in range(125):
-        dd.line((0, y, W, y), fill=(*lerp(*th["sky"], y / 125), 255))
-    cx, cy, r = 800, 72, 46
-    glow = Image.new("RGBA", deco.size, (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((cx - 130, cy - 130, cx + 130, cy + 130), fill=(255, 230, 150, 120))
-    deco.alpha_composite(glow.filter(ImageFilter.GaussianBlur(45)))
-    dd = ImageDraw.Draw(deco)
-    for j in range(r, 0, -1):
-        dd.ellipse((cx - j, cy - j, cx + j, cy + j), fill=(*lerp((255, 248, 200), (255, 196, 60), j / r), 255))
-    for y in range(125, 165):
-        dd.line((0, y, W, y), fill=(*lerp(*th["sea"], (y - 125) / 40), 255))
-    for i, y in enumerate(range(128, 162, 7)):
-        dd.line((cx - 46 + i * 6, y, cx + 46 - i * 6, y), fill=(255, 240, 180, 170 - i * 28), width=3)
-    for x0 in range(-60, W, 120):
-        dd.arc((x0, 159, x0 + 120, 171), 200, 340, fill=(255, 255, 255, 200), width=3)
-    for y in range(165, 230):
-        a = 255 if y < 184 else int(255 * (1 - (y - 184) / 46))
-        dd.line((0, y, W, y), fill=(*th["sand"], a))
-    c_ = (20, 28, 40, 255)
-
-    def palm(x, by, h, lean, s):
-        pts = [(x + lean * (i / 10) ** 2, by - h * i / 10) for i in range(11)]
-        dd.line(pts, fill=c_, width=int(11 * s), joint="curve")
-        tx, ty = pts[-1]
-        for ang, ln in ((-165, 80), (-135, 88), (-100, 62), (-62, 84), (-25, 90), (12, 74), (165, 70)):
-            a = math.radians(ang)
-            L = ln * s
-            mx, my = tx + L * .5 * math.cos(a), ty + L * .5 * math.sin(a) - 13 * s
-            ex, ey = tx + L * math.cos(a), ty + L * math.sin(a) + 20 * s
-            nx, ny = -math.sin(a) * 9 * s, math.cos(a) * 9 * s
-            dd.polygon([(tx, ty), (mx + nx, my + ny), (ex, ey), (mx - nx, my - ny)], fill=c_)
-    palm(1000, 184, 105, -28, 0.8)
-    palm(70, 184, 80, 18, 0.62)
+    deco = Image.new("RGBA", (W, DECO_END), (0, 0, 0, 0))
+    {"strand": deco_strand, "herbst": deco_herbst}[th["deco"]](th, deco)
     img.paste(deco, (0, 0), deco)
-    # Übergang zum dunklen Körper, damit Monatsname gut lesbar ist
-    ov = Image.new("RGBA", (W, 120), (0, 0, 0, 0))
+    ov = Image.new("RGBA", (W, 60), (0, 0, 0, 0))   # weicher Übergang in den dunklen Körper
     od = ImageDraw.Draw(ov)
-    for y in range(120):
-        od.line((0, y, W, y), fill=(*th["body"][0], int(255 * min(1, y / 45))))
-    img.paste(ov, (0, 178), ov)
-    # Fuß-Deko (liegt unter der Antwortleiste – nur Stimmung): Meer mit Wellen
-    bot = Image.new("RGBA", (W, 120), (0, 0, 0, 0))
+    for y in range(60):
+        od.line((0, y, W, y), fill=(*th["body"][0], int(255 * min(1, y / 34))))
+    img.paste(ov, (0, DECO_END - 26), ov)
+    # Fuß-Deko (unter der Antwortleiste – nur Stimmung)
+    bot = Image.new("RGBA", (W, 110), (0, 0, 0, 0))
     bd = ImageDraw.Draw(bot)
-    for y in range(120):
-        bd.line((0, y, W, y), fill=(*lerp(*th["sea"], y / 120), int(255 * min(1, y / 40))))
-    for x0 in range(-60, W, 120):
-        bd.arc((x0, 30, x0 + 120, 44), 200, 340, fill=(255, 255, 255, 120), width=3)
-        bd.arc((x0 + 60, 70, x0 + 180, 84), 200, 340, fill=(255, 255, 255, 80), width=3)
-    img.paste(bot, (0, H - 120), bot)
+    if th["deco"] == "strand":
+        for y in range(110):
+            bd.line((0, y, W, y), fill=(*lerp(*th["sea"], y / 110), int(255 * min(1, y / 36))))
+        for x0 in range(-60, W, 120):
+            bd.arc((x0, 30, x0 + 120, 44), 200, 340, fill=(255, 255, 255, 110), width=3)
+            bd.arc((x0 + 60, 66, x0 + 180, 80), 200, 340, fill=(255, 255, 255, 70), width=3)
+    else:
+        for y in range(110):
+            bd.line((0, y, W, y), fill=(*th["ground"][1], int(255 * min(1, y / 40))))
+        rnd = random.Random(5)
+        for _ in range(40):
+            _leaf(bd, rnd.randint(0, W), rnd.randint(30, 66), rnd.randint(7, 12), rnd.randint(0, 180),
+                  (*rnd.choice(th["leaves"]), 200))
+    img.paste(bot, (0, H - 110), bot)
     return img
 
 
 def fake_delta(route, day):
-    """TESTDATEN für die Vorschau: deterministische Beispiel-Veränderungen."""
+    """TESTDATEN: deterministische Beispiel-Veränderungen (nur für die Vorschau)."""
     h = int(hashlib.md5(f"{route}{day}".encode()).hexdigest(), 16) % 9
     return [-10.0, -5.0, -3.01, 0.0, 0.0, 5.0, 2.0, 12.5, None][h]
 
@@ -110,125 +167,166 @@ def fmt_delta(dv):
     return ("−" if dv < 0 else "+") + s + " €"
 
 
-def main(ym):
+def previous_day_prices(today):
+    """Preise aus dem letzten gespeicherten Preisstand vom Vortag (oder früher) – {(route, tag): preis}."""
+    best = None
+    for f in sorted(glob.glob(str(PROJ / "data" / "snapshots" / "*.pkl"))):
+        sn = pickle.load(open(f, "rb"))
+        if sn.fetched_at.date() < today:
+            best = sn
+    if not best:
+        return {}, None
+    return {(fa.route, fa.day): fa.price for fa in best.fares()}, best.fetched_at
+
+
+def main(ym, testdaten=False):
     YY, MM = map(int, ym.split("-"))
     th = THEMES[MM]
     cfg = load_config()
     cfg["route"]["months_ahead"] = 10
     now = cfg.now()
+    today = now.date()
     snap = fetch_all(cfg, now)
     (PROJ / "data" / "snapshots").mkdir(parents=True, exist_ok=True)
     pickle.dump(snap, open(PROJ / "data" / "snapshots" / now.strftime("%Y-%m-%d_%H%M.pkl"), "wb"))
-    month0 = date(YY, MM, 1)
+    prev, prev_at = previous_day_prices(today)
+    print("Vergleich mit Preisstand vom", prev_at)
 
     p = Painter(cfg)
     p.img = background(th)
     p.d = ImageDraw.Draw(p.img)
     t = p.t
 
-    # Kopf: Monat groß, Prüfzeit, Legende, Logo
+    # ---------- Kopf ----------
     title = f"{MONATE[MM - 1].upper()} {YY}"
-    ft = p.fit(title, "extrabold", 108, W - 2 * PAD - 130)
-    p.d.text((PAD + 3, 258), title, font=ft, fill=(0, 0, 0), anchor="lm")
-    p.d.text((PAD, 255), title, font=ft, fill=(255, 255, 255), anchor="lm")
-    p.d.text((PAD, 336), f"Preise geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
-             font=p.font("bold", 29), fill=(224, 234, 246), anchor="lm")
-    lx, ly = W - PAD - 50, 255
-    p.d.ellipse((lx - 50, ly - 50, lx + 50, ly + 50), fill=(255, 255, 255))
-    p.d.ellipse((lx - 45, ly - 45, lx + 45, ly + 45), fill=t.accent)
-    p.plane(lx, ly, 54, -35, (255, 255, 255))
-    items = [("▼ günstiger", DOWN), ("▲ teurer", UP), ("● gleich", SAME), ("NEU", NEW), ("– kein Flug", (130, 145, 165)),
-             ("★ günstigster Tag", GOLD)]
+    ft = p.fit(title, "extrabold", 112, W - 2 * PAD - 130)
+    p.d.text((PAD + 3, 215), title, font=ft, fill=(0, 0, 0), anchor="lm")
+    p.d.text((PAD, 212), title, font=ft, fill=(255, 255, 255), anchor="lm")
+    p.d.text((PAD + 2, 292), f"Preise geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
+             font=p.font("bold", 30), fill=(232, 238, 246), anchor="lm")
+    lx, ly = W - PAD - 52, 214
+    p.d.ellipse((lx - 52, ly - 52, lx + 52, ly + 52), fill=(255, 255, 255))
+    p.d.ellipse((lx - 47, ly - 47, lx + 47, ly + 47), fill=t.accent)
+    p.plane(lx, ly, 56, -35, (255, 255, 255))
+    items = [("▼ günstiger", DOWN), ("▲ teurer", UP), ("● gleich", SAME), ("NEU", NEW), ("– kein Flug", (150, 160, 175)),
+             ("✕ vorbei", (140, 146, 158)), ("★ günstigster Tag", GOLD)]
     fl = p.font("bold", 22)
-    gapl = (W - 2 * PAD - sum(p.tw(s_, fl) for s_, _ in items)) / (len(items) - 1)
-    x = PAD
+    if p.tw("✕", fl) == 0 or "✕" not in "".join(s for s, _ in items):
+        pass
+    gapl = (W - 2 * PAD - 4 - sum(p.tw(s_, fl) for s_, _ in items)) / (len(items) - 1)
+    x = PAD + 2
     for s_, col in items:
-        p.d.text((x, 378), s_, font=fl, fill=col, anchor="lm")
+        if s_.startswith("✕"):                          # X selbst zeichnen (Glyphe fehlt evtl. in der Schrift)
+            p.d.line((x + 1, 328, x + 15, 342), fill=col, width=3)
+            p.d.line((x + 1, 342, x + 15, 328), fill=col, width=3)
+            p.d.text((x + 22, 335), s_[2:], font=fl, fill=col, anchor="lm")
+            x += 22 + p.tw(s_[2:], fl) + gapl
+            continue
+        p.d.text((x, 335), s_, font=fl, fill=col, anchor="lm")
         x += p.tw(s_, fl) + gapl
 
+    # ---------- Kalender ----------
     weeks = pycal.Calendar(firstweekday=0).monthdatescalendar(YY, MM)
-    G = 5
     cw = (W - 2 * PAD - 6 * G) // 7
-    TOP, BOTTOM, HEAD, GAPB = 404, 1712, 70, 14
-    ch = int((BOTTOM - TOP - 2 * HEAD - GAPB - 2 * (len(weeks) - 1) * G) / (2 * len(weeks)))
-    ch = min(ch, 110)
+    TOP, BOTTOM, HEAD, GAPB = 360, 1716, 68, 12
+    ch = min(116, int((BOTTOM - TOP - 2 * HEAD - GAPB - 2 * (len(weeks) - 1) * G) / (2 * len(weeks))))
 
-    def block(top, route, label):
-        fares = {f.day: f for f in snap.fares(route) if f.day.year == YY and f.day.month == MM}
+    def block(top, route, label, outbound):
+        fares = {f.day: f for f in snap.fares(route) if f.day.year == YY and f.day.month == MM and f.day >= today}
         best = min(fares.values(), key=lambda f: (f.price, f.day)) if fares else None
-        p.d.ellipse((PAD, top + 1, PAD + 42, top + 43), fill=th["accent"])
-        p.plane(PAD + 21, top + 22, 16, -28 if label == "Hinflug" else 28, (255, 255, 255))
-        fT = p.font("extrabold", 36)
-        p.d.text((PAD + 54, top + 22), label.upper(), font=fT, fill=(255, 255, 255), anchor="lm")
-        x = PAD + 54 + p.tw(label.upper(), fT) + 16
+        # großes Flugzeug in Flugrichtung: Hinflug → nach rechts, Rückflug ← nach links
+        p.d.ellipse((PAD, top - 2, PAD + 54, top + 52), fill=th["accent"])
+        p.plane(PAD + 27, top + 25, 23, -18 if outbound else 198, (255, 255, 255))
+        fT = p.font("extrabold", 40)
+        p.d.text((PAD + 66, top + 25), label.upper(), font=fT, fill=(255, 255, 255), anchor="lm")
+        x = PAD + 66 + p.tw(label.upper(), fT) + 16
         f2 = p.font("semibold", 25)
         o, d_ = route.split("-")
         cc = {"HHN": "DE", "NDR": "MA"}
         for i, code in enumerate((o, d_)):
             if i:
-                p.d.text((x + 2, top + 22), "→", font=f2, fill=(180, 195, 215), anchor="lm")
+                p.d.text((x + 2, top + 25), "→", font=f2, fill=(190, 200, 215), anchor="lm")
                 x += p.tw("→", f2) + 10
-            x += p.flag(cc[code], x, top + 12, 20) + 8
-            p.d.text((x, top + 22), cfg.city(code), font=f2, fill=(224, 234, 246), anchor="lm")
+            x += p.flag(cc[code], x, top + 15, 20) + 8
+            p.d.text((x, top + 25), cfg.city(code), font=f2, fill=(232, 238, 246), anchor="lm")
             x += p.tw(cfg.city(code), f2) + 6
         if best:
-            p.d.text((W - PAD, top + 22), f"★ ab {fmt_price(best.price)}", font=p.font("extrabold", 30), fill=GOLD, anchor="rm")
+            p.d.text((W - PAD - 2, top + 25), f"★ ab {fmt_price(best.price)}", font=p.font("extrabold", 30),
+                     fill=GOLD, anchor="rm")
         for c, wd in enumerate(["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]):
-            p.d.text((PAD + c * (cw + G) + cw / 2, top + 58), wd, font=p.font("bold", 22),
-                     fill=(165, 180, 200) if c < 6 else (255, 180, 130), anchor="mm")
+            p.d.text((PAD + c * (cw + G) + cw / 2, top + 60), wd, font=p.font("bold", 22),
+                     fill=(175, 188, 205) if c < 6 else (255, 190, 140), anchor="mm")
         y0 = top + HEAD
-        fpr = p.font("extrabold", 38)
-        fd = p.font("bold", 22)
+        fd = p.font("bold", 25)
         for r_, week in enumerate(weeks):
             for c, day in enumerate(week):
-                x0, yy = PAD + c * (cw + G), y0 + r_ * (ch + G)
                 if day.month != MM:
                     continue
+                x0, yy = PAD + c * (cw + G), y0 + r_ * (ch + G)
+                box = (x0, yy, x0 + cw, yy + ch)
+                if day < today:                          # vorbei: grau, X, kein Preis
+                    p.d.rounded_rectangle(box, 12, fill=PAST_BG)
+                    p.d.text((x0 + 9, yy + 5), str(day.day), font=p.font("bold", 22), fill=PAST_FG)
+                    cx, cy, s = x0 + cw / 2, yy + ch / 2 + 8, 15
+                    p.d.line((cx - s, cy - s, cx + s, cy + s), fill=PAST_FG, width=5)
+                    p.d.line((cx - s, cy + s, cx + s, cy - s), fill=PAST_FG, width=5)
+                    continue
                 f = fares.get(day)
-                p.d.rounded_rectangle((x0, yy, x0 + cw, yy + ch), 12, fill=th["cell"] if f else th["cell_off"])
-                p.d.text((x0 + 9, yy + 5), str(day.day), font=p.font("bold", 22), fill=(170, 185, 205))
+                p.d.rounded_rectangle(box, 12, fill=th["cell"] if f else th["cell_off"])
+                p.d.text((x0 + 9, yy + 5), str(day.day), font=p.font("bold", 22), fill=(185, 196, 212))
                 if not f:
-                    p.d.text((x0 + cw / 2, yy + ch / 2 + 6), "–", font=p.font("bold", 34), fill=(85, 100, 120), anchor="mm")
+                    p.d.text((x0 + cw / 2, yy + ch / 2 + 8), "–", font=p.font("bold", 36), fill=(110, 120, 135), anchor="mm")
                     continue
                 price = f"{f.price:.2f}".replace(".", ",")
-                fp = fpr if p.tw(price, fpr) <= cw - 12 else p.fit(price, "extrabold", 38, cw - 12)
-                p.d.text((x0 + cw - 7, yy + ch * 0.66), price, font=fp, fill=(255, 255, 255), anchor="rs")
-                dv = fake_delta(route, day)
+                fp = p.fit(price, "extrabold", 42, cw - 10)
+                p.d.text((x0 + cw - 6, yy + ch * 0.64), price, font=fp, fill=(255, 255, 255), anchor="rs")
+                if testdaten:
+                    dv = fake_delta(route, day)
+                else:
+                    old = prev.get((route, day))
+                    dv = None if old is None else round(f.price - old, 2)
                 by = yy + ch - 7
                 if dv is None:
-                    p.d.rounded_rectangle((x0 + cw - 60, by - 22, x0 + cw - 6, by + 1), 11, fill=NEW)
-                    p.d.text((x0 + cw - 33, by - 10), "NEU", font=p.font("extrabold", 16), fill=(255, 255, 255), anchor="mm")
-                elif dv == 0:
-                    p.d.text((x0 + cw - 7, by), "● ±0 €", font=fd, fill=SAME, anchor="rs")
+                    p.d.rounded_rectangle((x0 + cw - 66, by - 25, x0 + cw - 5, by + 1), 12, fill=NEW)
+                    p.d.text((x0 + cw - 35, by - 11), "NEU", font=p.font("extrabold", 18), fill=(255, 255, 255), anchor="mm")
+                elif abs(dv) < 0.005:
+                    p.d.text((x0 + cw - 6, by), "● ±0 €", font=fd, fill=SAME, anchor="rs")
                 else:
                     txt = ("▼ " if dv < 0 else "▲ ") + fmt_delta(dv)
-                    fdd = fd if p.tw(txt, fd) <= cw - 12 else p.fit(txt, "bold", 22, cw - 12)
-                    p.d.text((x0 + cw - 7, by), txt, font=fdd, fill=DOWN if dv < 0 else UP, anchor="rs")
+                    p.d.text((x0 + cw - 6, by), txt, font=p.fit(txt, "bold", 25, cw - 10),
+                             fill=DOWN if dv < 0 else UP, anchor="rs")
                 if best and day == best.day:
-                    p.d.rounded_rectangle((x0, yy, x0 + cw, yy + ch), 12, outline=GOLD, width=5)
-                    p.d.text((x0 + cw - 9, yy + 17), "★", font=p.font("bold", 26), fill=GOLD, anchor="rm")
+                    p.d.rounded_rectangle(box, 12, outline=GOLD, width=5)
+                    p.d.text((x0 + cw - 9, yy + 18), "★", font=p.font("bold", 28), fill=GOLD, anchor="rm")
         return y0 + len(weeks) * (ch + G) - G
 
-    end1 = block(TOP, cfg.route_out, "Hinflug")
-    end2 = block(end1 + GAPB, cfg.route_ret, "Rückflug")
-    y = end2 + 24
-    p.d.text((W / 2, y), "Preise in € pro Person (Basic-Tarif) · Veränderung zum Vortag · Preise können sich jederzeit ändern",
-             font=p.font("semibold", 19), fill=(190, 200, 215), anchor="mm")
-    p.d.text((W / 2, y + 28), "Unabhängige Infoseite · keine Verbindung zu Ryanair · Buchung nur auf ryanair.com",
-             font=p.font("medium", 17), fill=(140, 155, 175), anchor="mm")
-    lab = "VORSCHAU · Veränderungen = TESTDATEN"
-    fv = p.font("extrabold", 20)
-    bw = p.tw(lab, fv) + 30
-    p.d.rounded_rectangle(((W - bw) / 2, H - 70, (W + bw) / 2, H - 36), 17, fill=(255, 210, 80))
-    p.d.text((W / 2, H - 53), lab, font=fv, fill=(30, 25, 10), anchor="mm")
-    print("Zellhöhe", ch, "Zellbreite", cw, "Ende", y + 28)
+    end1 = block(TOP, cfg.route_out, "Hinflug", True)
+    end2 = block(end1 + GAPB, cfg.route_ret, "Rückflug", False)
+
+    # ---------- Fuß ----------
+    y = end2 + 30
+    p.d.text((W / 2, y), "Die Flugpreise können sich im Laufe des Tages jederzeit ändern.",
+             font=p.fit("Die Flugpreise können sich im Laufe des Tages jederzeit ändern.", "bold", 30, W - 2 * PAD),
+             fill=(255, 255, 255), anchor="mm")
+    p.d.text((W / 2, y + 34), "Preise in € pro Person (Basic-Tarif) · Veränderung zum Vortag · Buchung nur auf ryanair.com",
+             font=p.font("semibold", 19), fill=(195, 205, 218), anchor="mm")
+    for dx, dy in ((2, 2), (0, 0)):
+        p.d.text((W / 2 + dx, H - 22 + dy), "Unabhängige Infoseite · keine Verbindung zu Ryanair",
+                 font=p.font("semibold", 18), fill=(0, 0, 0) if dx else (240, 244, 250), anchor="mm")
+    if testdaten:
+        lab = "VORSCHAU · Veränderungen = TESTDATEN"
+        fv = p.font("extrabold", 20)
+        bw = p.tw(lab, fv) + 30
+        p.d.rounded_rectangle(((W - bw) / 2, H - 80, (W + bw) / 2, H - 48), 16, fill=(255, 210, 80))
+        p.d.text((W / 2, H - 64), lab, font=fv, fill=(30, 25, 10), anchor="mm")
+    print(f"Zelle {cw}×{ch}, Kalender-Ende {end2}, Fußzeile {y + 34}")
 
     out = PROJ / "output" / "vorschau"
     out.mkdir(parents=True, exist_ok=True)
     fn = out / f"story_kalender_{YY}-{MM:02d}.png"
     p.img.save(fn)
 
-    # Zusätzlich: wie es in der Story-Ansicht aussieht (Instagram-Bedienelemente simuliert)
+    # Ansicht wie in der Story (Instagram-Bedienelemente simuliert)
     m = p.img.convert("RGBA")
     ui = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     u = ImageDraw.Draw(ui)
@@ -248,4 +346,4 @@ def main(ym):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], testdaten="--testdaten" in sys.argv)
