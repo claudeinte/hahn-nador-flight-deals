@@ -372,8 +372,8 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
     ft = p.fit(title, "extrabold", 112, W - 2 * PAD - 130)
     p.d.text((PAD + 3, 215), title, font=ft, fill=(0, 0, 0), anchor="lm")
     p.d.text((PAD, 212), title, font=ft, fill=(255, 255, 255), anchor="lm")
-    p.d.text((PAD + 2, 292), f"Preise geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
-             font=p.font("bold", 30), fill=(232, 238, 246), anchor="lm")
+    p.d.text((PAD + 2, 292), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
+             font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="lm")
     lx, ly = W - PAD - 52, 214
     p.d.ellipse((lx - 52, ly - 52, lx + 52, ly + 52), fill=(255, 255, 255))
     p.d.ellipse((lx - 47, ly - 47, lx + 47, ly + 47), fill=t.accent)
@@ -575,17 +575,19 @@ def render_summary(cfg, snap, months, now):
     p.d = ImageDraw.Draw(p.img)
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
 
-    title = "ÜBERSICHT"
-    p.d.text((PAD + 3, 215), title, font=p.font("extrabold", 112), fill=(0, 0, 0), anchor="lm")
-    p.d.text((PAD, 212), title, font=p.font("extrabold", 112), fill=(255, 255, 255), anchor="lm")
+    title = "BESTPREISE PRO MONAT"
+    ftt = p.fit(title, "extrabold", 112, W - 2 * PAD - 128)
+    p.d.text((PAD + 3, 215), title, font=ftt, fill=(0, 0, 0), anchor="lm")
+    p.d.text((PAD, 212), title, font=ftt, fill=(255, 255, 255), anchor="lm")
     lx, ly = W - PAD - 52, 214
     p.d.ellipse((lx - 52, ly - 52, lx + 52, ly + 52), fill=(255, 255, 255))
     p.d.ellipse((lx - 47, ly - 47, lx + 47, ly + 47), fill=t.accent)
     p.plane(lx, ly, 56, -35, (255, 255, 255))
-    p.d.text((PAD + 2, 292), f"Preise geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
-             font=p.font("bold", 30), fill=(232, 238, 246), anchor="lm")
-    p.d.text((PAD + 2, 336), "Günstigste Flüge der nächsten 9 Monate · Frankfurt-Hahn ↔ Nador",
-             font=p.font("bold", 25), fill=(190, 205, 225), anchor="lm")
+    p.d.text((PAD + 2, 292), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
+             font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="lm")
+    p.d.text((PAD + 2, 336), "Die günstigsten Hin- und Rückflüge der nächsten 9 Monate",
+             font=p.fit("Die günstigsten Hin- und Rückflüge der nächsten 9 Monate", "bold", 27, W - 2 * PAD - 8),
+             fill=(190, 205, 225), anchor="lm")
 
     rows = []
     for (y_, m_) in months:
