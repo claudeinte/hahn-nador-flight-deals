@@ -586,7 +586,7 @@ def render_summary(cfg, snap, months, now):
     p.plane(lx, ly, 56, -35, (255, 255, 255))
     p.d.text((PAD + 2, 292), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
              font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="lm")
-    sub = f"Die günstigsten Hin- und Rückflüge der nächsten {len(months)} Monate"
+    sub = f"Hin- und Rückflug Frankfurt-Hahn ↔ Nador · die günstigsten Preise der nächsten {len(months)} Monate"
     p.d.text((PAD + 2, 336), sub, font=p.fit(sub, "bold", 27, W - 2 * PAD - 8),
              fill=(190, 205, 225), anchor="lm")
 
@@ -603,12 +603,12 @@ def render_summary(cfg, snap, months, now):
 
     # Spaltenköpfe
     col1, col2 = 330, 700
-    hy = 388
-    for x_, lab, route, outb in ((col1, "HINFLUG", cfg.route_out, True), (col2, "RÜCKFLUG", cfg.route_ret, False)):
+    hy = 384
+    for x_, lab, rt, outb in ((col1, "HINFLUG", "Frankfurt-Hahn → Nador", True), (col2, "RÜCKFLUG", "Nador → Frankfurt-Hahn", False)):
         p.d.ellipse((x_, hy - 21, x_ + 42, hy + 21), fill=t.accent)
         p.plane(x_ + 21, hy, 17, -18 if outb else 198, (255, 255, 255))
-        p.d.text((x_ + 52, hy), lab, font=p.font("extrabold", 30), fill=(255, 255, 255), anchor="lm")
-        p.flag_pair(route, x_ + 52 + p.tw(lab, p.font("extrabold", 30)) + 10, hy - 10, 20)
+        p.d.text((x_ + 52, hy - 8), lab, font=p.font("extrabold", 28), fill=(255, 255, 255), anchor="lm")
+        p.d.text((x_ + 53, hy + 19), rt, font=p.font("semibold", 19), fill=(190, 205, 225), anchor="lm")
     p.d.text((PAD + 6, hy), "MONAT", font=p.font("extrabold", 26), fill=(170, 185, 205), anchor="lm")
 
     # Preisfarben (nur in dieser Übersicht): <25 grün · 25–49,99 gelb · 50–100 orange · >100 rot
@@ -621,13 +621,13 @@ def render_summary(cfg, snap, months, now):
     fl = p.font("bold", 24)
     widths = [30 + p.tw(lab, fl) for _, lab in BANDS]
     gap = (W - 2 * PAD - 12 - sum(widths)) / (len(BANDS) - 1)
-    x, ly2 = PAD + 6, 436
+    x, ly2 = PAD + 6, 442
     for (col, lab), w_ in zip(BANDS, widths):
         p.d.ellipse((x, ly2 - 11, x + 22, ly2 + 11), fill=col)
         p.d.text((x + 30, ly2), lab, font=fl, fill=col, anchor="lm")
         x += w_ + gap
 
-    top, bottom = 462, 1716
+    top, bottom = 468, 1716
     n = len(rows)
     gp = 6 if n > 9 else 8
     rh = (bottom - top - gp * (n - 1)) / n
@@ -743,12 +743,13 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
         yy = y1 + k * step
         p.d.ellipse((lx, yy - 19, lx + 38, yy + 19), fill=t.accent)
         p.plane(lx + 19, yy, 15, ang, (255, 255, 255))
-        fw = p.flag_pair(route, lx + 48, yy - 10, 20)
-        xt = lx + 58 + fw
+        xt = lx + 52
+        rt = "Hinflug · Frankfurt-Hahn → Nador" if route == "HHN-NDR" else "Rückflug · Nador → Frankfurt-Hahn"
+        p.d.text((xt, yy - 20), rt, font=p.font("semibold", 21), fill=(160, 178, 200), anchor="lm")
         dt = f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.%Y} · {f.departure}"
         fdt = p.font("bold", 29)
-        p.d.text((xt, yy), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
-        p.d.text((xt + p.tw(dt, fdt) + 14, yy), fmt_price(f.price), font=p.font("semibold", 26), fill=(170, 186, 206), anchor="lm")
+        p.d.text((xt, yy + 14), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
+        p.d.text((xt + p.tw(dt, fdt) + 14, yy + 14), fmt_price(f.price), font=p.font("semibold", 26), fill=(170, 186, 206), anchor="lm")
     p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12)), fmt_price(tot), font=p.font("extrabold", 58),
              fill=GOLD if (rank or 9) <= 3 or label else (255, 255, 255), anchor="rm")
     p.d.text((W - PAD - 26, top + h / 2 + (60 if label else 36)), f"hin & zurück · {nights} Nächte",
@@ -774,7 +775,7 @@ def render_kombis(cfg, snap, now, n=5, min_n=3, max_n=30):
         if len(top) == n:
             break
     p = _frame(cfg, now, "TOP 5 KOMBINATIONEN",
-               f"Die günstigsten Hin- und Rückflüge ({min_n}–{max_n} Nächte) der nächsten {N_MONATE} Monate")
+               f"Hin- und Rückflug Frankfurt-Hahn ↔ Nador · {min_n}–{max_n} Nächte · nächste {N_MONATE} Monate")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
     y0, y1, gap = 380, 1712, 14
     h = (y1 - y0 - gap * (n - 1)) / n
@@ -789,7 +790,7 @@ def render_dauer(cfg, snap, now):
     today = now.date()
     outs, rets = _future(snap, cfg, cfg.route_out, today), _future(snap, cfg, cfg.route_ret, today)
     spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]
-    p = _frame(cfg, now, "GÜNSTIG NACH DAUER", "Bester Hin- und Rückflug für 1, 2 und 3 Wochen oder 1 Monat in Nador")
+    p = _frame(cfg, now, "GÜNSTIG NACH DAUER", "Hin- und Rückflug Frankfurt-Hahn ↔ Nador · 1, 2, 3 Wochen oder 1 Monat")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
     y0, y1, gap = 380, 1712, 16
     h = (y1 - y0 - gap * 3) / 4
