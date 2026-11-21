@@ -965,8 +965,8 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
         k = (i + 1) / n
         ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(50 + 205 * k)), width=int(3 + 7 * k))
     u = plane_t + 0.06
-    while u < 0.94:
-        ld.line((B(u), B(min(u + 0.03, 0.94))), fill=(230, 238, 250, 235), width=5)
+    while u < 0.86:
+        ld.line((B(u), B(min(u + 0.03, 0.86))), fill=(230, 238, 250, 235), width=6)
         u += 0.05
     glow = lay.filter(ImageFilter.GaussianBlur(6))
     base = p.img.convert("RGBA")
@@ -975,7 +975,16 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
     p.img = base.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
     p.d.ellipse((a[0] - 11, a[1] - 11, a[0] + 11, a[1] + 11), fill=t.accent, outline=(255, 255, 255), width=3)
-    p.d.ellipse((b[0] - 11, b[1] - 11, b[0] + 11, b[1] + 11), fill=t.green, outline=(255, 255, 255), width=3)
+    ex, ey = B(1.0)                                         # große Pfeilspitze genau am Ziel
+    bx_, by_ = B(0.88)
+    ang = math.atan2(ey - by_, ex - bx_)
+    L, Wd = 54, 30
+    tip = (ex, ey)
+    pts_ = [tip, (tip[0] - L * math.cos(ang) + Wd * math.cos(ang + math.pi / 2), tip[1] - L * math.sin(ang) + Wd * math.sin(ang + math.pi / 2)),
+            (tip[0] - L * math.cos(ang) * 0.72, tip[1] - L * math.sin(ang) * 0.72),
+            (tip[0] - L * math.cos(ang) - Wd * math.cos(ang + math.pi / 2), tip[1] - L * math.sin(ang) - Wd * math.sin(ang + math.pi / 2))]
+    p.d.polygon([(x_ + 3, y_ + 3) for x_, y_ in pts_], fill=(0, 0, 0))
+    p.d.polygon(pts_, fill=t.green, outline=(255, 255, 255), width=3)
     x, y = B(plane_t)
     qx, qy = B(plane_t + 0.01)
     p.d.ellipse((x - 50, y - 50, x + 50, y + 50), fill=(255, 255, 255))
@@ -993,20 +1002,20 @@ def render_bestangebot(cfg, snap, now):
     t = p.t
     ph = cfg["photos"]
     pd_ = PROJ / "assets" / "photos"
-    top_img = _cover(_photo(str(pd_ / ph["origin_file"])), W, 1150, 0.55, 0.35).convert("RGBA")
-    bot_img = _cover(_photo(str(pd_ / ph["destination_file"])), W, 1150, 0.62, 0.6).convert("RGBA")
+    left = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H, 0.55, 0.4).convert("RGBA")
+    right = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H, 0.62, 0.55).convert("RGBA")
     bg = Image.new("RGBA", (W, H), (8, 14, 26, 255))
-    bg.alpha_composite(top_img, (0, 0))
-    fade = Image.new("L", (W, 1150), 255)
-    fd = ImageDraw.Draw(fade)
-    for yy in range(380):
-        fd.line((0, yy, W, yy), fill=int(255 * yy / 380))
-    bot_img.putalpha(fade)
-    bg.alpha_composite(bot_img, (0, H - 1150))
+    bg.alpha_composite(left, (0, 0))
+    mask = Image.new("L", right.size, 255)
+    md = ImageDraw.Draw(mask)
+    for xx in range(160):                                   # weicher Übergang in der Mitte
+        md.line((xx, 0, xx, H), fill=int(255 * xx / 160))
+    right.putalpha(mask)
+    bg.alpha_composite(right, (W - right.width, 0))
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
     for yy in range(H):
-        a_ = 150 - 80 * min(1, yy / 520) if yy < 760 else min(215, 70 + (yy - 760) * 0.25)
+        a_ = 120 - 75 * min(1, yy / 520) if yy < 760 else min(210, 45 + (yy - 760) * 0.25)
         od.line((0, yy, W, yy), fill=(6, 12, 24, int(a_)))
     bg.alpha_composite(ov)
     p.img = bg.convert("RGB")
@@ -1078,11 +1087,30 @@ def render_bestangebot(cfg, snap, now):
     return p.img
 
 
+def week_ago_prices(today):
+    """Preisstand von vor einer Woche (letzter Stand mit Datum ≤ heute−7). Gibt es noch keinen so alten Stand,
+    wird der älteste vorhandene genommen – das Datum steht immer im Bild."""
+    from datetime import timedelta
+    snaps = []
+    for f in sorted(glob.glob(str(PROJ / "data" / "snapshots" / "*.pkl"))):
+        sn = pickle.load(open(f, "rb"))
+        snaps.append(sn)
+    if not snaps:
+        return {}, None
+    snaps.sort(key=lambda x: x.fetched_at)
+    old = [x for x in snaps if x.fetched_at.date() <= today - timedelta(days=7)]
+    best = old[-1] if old else snaps[0]
+    return {(fa.route, fa.day): fa.price for fa in best.fares()}, best.fetched_at
+
+
 def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
     """Story vor den Kalendern: Top 3 Hin- und Rückflüge, die seit gestern um mehr als min_pct % günstiger sind."""
     today = now.date()
     p = _frame(cfg, now, "PREISSTÜRZE",
-               f"Top 3 Hin- und Rückflüge, die seit gestern über {min_pct:.0f} % günstiger geworden sind", sky="tuerkis")
+               ((f"Top 3, die seit einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}) über {min_pct:.0f} % günstiger wurden"
+                 if (today - prev_at.date()).days >= 7 else
+                 f"Top 3, die seit {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.%Y} über {min_pct:.0f} % günstiger wurden")
+                if prev_at else f"Top 3 mit über {min_pct:.0f} % Preissenkung"), sky="tuerkis")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
 
     def drops(route):
@@ -1108,7 +1136,7 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
         if not items:
             hh = ch_
             p.d.rounded_rectangle((PAD, y, W - PAD, y + hh), 20, fill=(18, 32, 54))
-            p.d.text((W / 2, y + hh / 2 - 22), f"Heute kein Preissturz über {min_pct:.0f} %", font=p.font("extrabold", 36),
+            p.d.text((W / 2, y + hh / 2 - 22), f"Kein Preissturz über {min_pct:.0f} % seit {prev_at:%d.%m.}" if prev_at else f"Kein Preissturz über {min_pct:.0f} %", font=p.font("extrabold", 36),
                      fill=(200, 212, 228), anchor="mm")
             p.d.text((W / 2, y + hh / 2 + 26), "Die aktuellen Bestpreise findest du in den nächsten Stories →",
                      font=p.font("bold", 26), fill=(150, 165, 185), anchor="mm")
@@ -1128,7 +1156,8 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
             p.d.text((xo, top + 140), os_, font=fo, fill=(150, 162, 180), anchor="lm")
             wo = p.tw(os_, fo)
             p.d.line((xo - 3, top + 141, xo + wo + 3, top + 141), fill=UP, width=4)
-            p.d.text((xo + wo + 14, top + 140), f"am {prev_at:%d.%m.}" if prev_at else "vorher", font=p.font("bold", 22), fill=(150, 162, 180), anchor="lm")
+            p.d.text((xo + wo + 14, top + 140), ((f"Preis vor einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.})" if (today - prev_at.date()).days >= 7
+               else f"Preis am {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}") if prev_at else "vorher"), font=p.font("bold", 22), fill=(150, 162, 180), anchor="lm")
             p.d.text((W - PAD - 26, top + 72), fmt_price(f.price), font=p.font("extrabold", 58), fill=(60, 220, 120), anchor="rm")
             lab = f"▼ −{pct:.0f} %"
             fl = p.font("extrabold", 30)
@@ -1136,7 +1165,9 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
             p.d.rounded_rectangle((W - PAD - 26 - lw, top + 112, W - PAD - 26, top + 156), 22, fill=(22, 120, 60))
             p.d.text((W - PAD - 26 - lw / 2, top + 134), lab, font=fl, fill=(255, 255, 255), anchor="mm")
         y += max(1, len(items)) * (ch_ + 12) + 30
-    _footer(p, f"Vergleich mit den Preisen vom {prev_at:%d.%m.%Y, %H:%M} Uhr · pro Person (Basic-Tarif) · Buchung nur auf ryanair.com"
+    _footer(p, (f"Vergleich mit den Preisen von vor einer Woche ({WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y})"
+                if (today - prev_at.date()).days >= 7 else
+                f"Vergleich mit den Preisen vom {WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y}") + " · pro Person, Basic-Tarif"
             if prev_at else "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com")
     return p.img
 
