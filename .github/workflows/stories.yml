@@ -101,7 +101,8 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add data/snapshots/*.pkl data/stories_veroeffentlicht.json 2>/dev/null || true
+          git add data/snapshots/ 2>/dev/null || true
+          git add data/stories_veroeffentlicht.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -qm "Stories/Preise $(date +'%Y-%m-%d %H:%M')"
             for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
