@@ -115,6 +115,8 @@ txt = f"""{edition_line(now)}
 📉 Preissturz im {MONATE[MM - 1]}: 🇩🇪 Frankfurt-Hahn ✈️ 🇲🇦 Nador – viele Flüge jetzt günstiger, bis zu −{max(round((op - f.price) / op * 100) for f, op in hin + rueck)} %!
 🕒 Preise {fmt_checked(now)} – können sich jederzeit ändern.
 
+{cfg['page']['stories_hint']}
+
 Verglichen mit den Preisen vom {then.strftime('%d.%m.%Y')} um {then.strftime('%H:%M')} Uhr (pro Person):
 
 🛫 Hinflug 🇩🇪 → 🇲🇦

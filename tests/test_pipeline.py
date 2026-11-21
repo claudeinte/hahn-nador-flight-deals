@@ -134,3 +134,13 @@ def test_footer_like_cta_after_baggage():
     i_bag, i_cta, i_disc = txt.index("Basic-Tarif"), txt.index("👍 Wenn dir unsere Flugtipps gefallen"), txt.index("ℹ️")
     assert i_bag < i_cta < i_disc
     assert txt.rstrip().endswith("#Arif")
+
+
+def test_stories_hint_after_checked_line():
+    from flightdeals.config import load_config
+    from flightdeals.posts import add_stories_hint
+    hint = load_config()["page"]["stories_hint"]
+    t = add_stories_hint("🗞️ Flug-News\nHook\n🕒 Preise geprüft …\nRest", hint)
+    lines = t.split("\n")
+    assert lines[2].startswith("🕒") and lines[4] == hint
+    assert add_stories_hint(t, hint) == t          # nicht doppelt

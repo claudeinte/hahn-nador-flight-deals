@@ -163,7 +163,19 @@ def alerts_text(cfg: Config, snap: Snapshot, alerts: list[Alert]) -> str:
     return f"{head}\n\n{body}\n\n{_footer_text(cfg, snap)}"
 
 
-def _write(d: Path, kind: str, text: str, images: list[str], extra: dict, test: bool):
+def add_stories_hint(text: str, hint: str) -> str:
+    """Fügt den Stories-Hinweis als eigenen Absatz direkt nach der ersten Zeile „🕒 …“ ein (nur einmal)."""
+    if not hint or hint in text:
+        return text
+    lines = text.split("\n")
+    for i, ln in enumerate(lines):
+        if ln.startswith("🕒"):
+            return "\n".join(lines[:i + 1] + ["", hint] + lines[i + 1:])
+    return text
+
+
+def _write(d: Path, kind: str, text: str, images: list[str], extra: dict, test: bool, hint: str = ""):
+    text = add_stories_hint(text, hint)
     (d / "beitrag.txt").write_text(text, encoding="utf-8")
     meta = {"typ": kind, "bilder": images, "erstellt": datetime.now().isoformat(timespec="seconds"),
             "testdaten": test, "veroeffentlicht": False, "status": "vorbereitet (Facebook-Veröffentlichung deaktiviert)",
@@ -194,7 +206,8 @@ def build_calendar_post(cfg: Config, snap: Snapshot, now: datetime, kind: str, m
         images.append(name)
     links = {m.strftime("%Y-%m"): round_trip_link(cfg["route"]["origin"], cfg["route"]["destination"],
                                                   c.outbound.day, c.inbound.day) for m, c in combos.items()}
-    _write(d, kind, calendar_text(cfg, snap, months, combos), images, {"links": links}, test)
+    _write(d, kind, calendar_text(cfg, snap, months, combos), images, {"links": links}, test,
+           hint=cfg["page"].get("stories_hint", ""))
     return d
 
 
@@ -224,7 +237,7 @@ def build_alert_post(cfg: Config, snap: Snapshot, alerts: list[Alert], history, 
         else:
             links.append(booking_link(a.fare.origin, a.fare.destination, a.fare.day))
     _write(d, "angebot", alerts_text(cfg, snap, alerts), images,
-           {"angebote": [a.kind for a in alerts], "links": links}, test)
+           {"angebote": [a.kind for a in alerts], "links": links}, test, hint=cfg["page"].get("stories_hint", ""))
     return d
 
 
@@ -278,5 +291,6 @@ def build_top3_post(cfg: Config, snap: Snapshot, now: datetime, months: list[dat
              for _, c in combos]
     _write(d, "top3", top3_text(cfg, snap, months, combos), [name],
            {"kombinationen": [{"kategorie": cat["label"], "hin": str(c.outbound.day), "rueck": str(c.inbound.day),
-                               "gesamt": c.total} for cat, c in combos], "links": links}, False)
+                               "gesamt": c.total} for cat, c in combos], "links": links}, False,
+           hint=cfg["page"].get("stories_hint", ""))
     return d
