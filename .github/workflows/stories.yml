@@ -1,0 +1,117 @@
+name: Tages-Stories (Instagram + Facebook)
+
+# Start: von Hand unter "Actions" oder per cron-job.org (workflow_dispatch über die GitHub-API).
+# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 10 Stories auf IG und FB.
+on:
+  workflow_dispatch:
+    inputs:
+      modus:
+        description: "test = nur Bilder erstellen · veroeffentlichen = als Stories posten"
+        type: choice
+        options: [test, veroeffentlichen]
+        default: test
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tages-stories
+  cancel-in-progress: false
+
+jobs:
+  stories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONPATH: src
+      TZ: Europe/Berlin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Datum (Berlin) und Doppel-Schutz
+        id: tag
+        run: |
+          D=$(date +%F)
+          echo "datum=$D" >> "$GITHUB_OUTPUT"
+          python - "$D" <<'EOF'
+          import json, os, sys, pathlib
+          d = sys.argv[1]; p = pathlib.Path("data/stories_veroeffentlicht.json")
+          st = json.loads(p.read_text()) if p.exists() else {}
+          day = st.get(d, {})
+          fertig = len(day.get("instagram", [])) == 10 and len(day.get("facebook", [])) == 10
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"fertig={'ja' if fertig else 'nein'}\n")
+          print("Heute schon komplett veröffentlicht:" , fertig)
+          EOF
+
+      - name: Preise abfragen und 10 Story-Bilder erstellen
+        if: steps.tag.outputs.fertig == 'nein'
+        run: python scripts/vorschau_story_kalender.py --alle
+
+      - name: In JPEG umwandeln
+        if: steps.tag.outputs.fertig == 'nein'
+        run: |
+          D=${{ steps.tag.outputs.datum }}
+          mkdir -p public/$D
+          python - "$D" <<'EOF'
+          import sys, pathlib
+          from PIL import Image
+          d = sys.argv[1]
+          src = sorted(pathlib.Path(f"output/stories/{d}").glob("[0-9][0-9]_*.png"))
+          assert len(src) == 10, f"{len(src)} Bilder statt 10"
+          for f in src:
+              Image.open(f).convert("RGB").save(f"public/{d}/{f.stem}.jpg", "JPEG", quality=92, optimize=True)
+          print("JPEG:", [f.stem for f in src])
+          EOF
+
+      - name: Bilder öffentlich bereitstellen (Branch "stories")
+        if: steps.tag.outputs.fertig == 'nein' && inputs.modus == 'veroeffentlichen'
+        run: |
+          D=${{ steps.tag.outputs.datum }}
+          W=$(mktemp -d)
+          cp -r public/$D "$W/"
+          cd "$W"
+          git init -q -b stories
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Stories $D"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" stories
+
+      - name: Stories veröffentlichen
+        if: steps.tag.outputs.fertig == 'nein'
+        env:
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
+        run: >
+          python scripts/stories_publish.py --ordner public/${{ steps.tag.outputs.datum }}
+          --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }}
+
+      - name: Preisverlauf und Veröffentlichungs-Protokoll speichern
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data/snapshots/*.pkl data/stories_veroeffentlicht.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -qm "Stories/Preise $(date +'%Y-%m-%d %H:%M')"
+            for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
+          fi
+
+      - name: Bilder als ZIP bereitstellen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stories-${{ steps.tag.outputs.datum }}-${{ github.run_number }}
+          path: public/
+          if-no-files-found: ignore
+          retention-days: 14
