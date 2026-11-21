@@ -71,7 +71,8 @@ jobs:
           n = int(__import__("os").environ["ANZAHL"])
           assert len(src) == n, f"{len(src)} Bilder statt {n}"
           for f in src:
-              Image.open(f).convert("RGB").save(f"public/{d}/{f.stem}.jpg", "JPEG", quality=92, optimize=True)
+              # Qualität 95 und ohne Farb-Unterabtastung (4:4:4) → Schrift bleibt scharf, auch farbige Preise
+              Image.open(f).convert("RGB").save(f"public/{d}/{f.stem}.jpg", "JPEG", quality=95, subsampling=0, optimize=True)
           print("JPEG:", [f.stem for f in src])
           EOF
 
@@ -97,6 +98,7 @@ jobs:
           STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
         run: >
           python scripts/stories_publish.py --ordner public/${{ steps.tag.outputs.datum }}
+          --png-ordner output/stories/${{ steps.tag.outputs.datum }}
           --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
       - name: Preisverlauf und Veröffentlichungs-Protokoll speichern

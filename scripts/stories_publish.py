@@ -42,7 +42,7 @@ def _call(method, path, fields=None, file_path=None, tries=3):
                 for k, v in fields.items():
                     body += f"--{b}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
                 body += (f"--{b}\r\nContent-Disposition: form-data; name=\"source\"; filename=\"{file_path.name}\"\r\n"
-                         f"Content-Type: image/jpeg\r\n\r\n").encode() + file_path.read_bytes() + f"\r\n--{b}--\r\n".encode()
+                         f"Content-Type: {'image/png' if file_path.suffix == '.png' else 'image/jpeg'}\r\n\r\n").encode() + file_path.read_bytes() + f"\r\n--{b}--\r\n".encode()
                 req = urllib.request.Request(url, data=bytes(body), method="POST",
                                              headers={"Content-Type": f"multipart/form-data; boundary={b}"})
             else:
@@ -113,14 +113,17 @@ def publish_instagram(files, base_url, st_day):
         time.sleep(3)
 
 
-def publish_facebook(files, st_day):
+def publish_facebook(files, st_day, png_dir=None):
     page = os.environ["FACEBOOK_PAGE_ID"].strip()
     done = st_day.setdefault("facebook", [])
     for f in files:
         if f.name in done:
             print(f"  Facebook: {f.name} schon veröffentlicht – übersprungen")
             continue
-        ph = _call("POST", f"{page}/photos", {"published": "false"}, file_path=f)
+        src = (Path(png_dir) / (f.stem + ".png")) if png_dir else f      # Facebook: verlustfreies PNG → schärfer
+        if not src.exists():
+            src = f
+        ph = _call("POST", f"{page}/photos", {"published": "false"}, file_path=src)
         _call("POST", f"{page}/photo_stories", {"photo_id": ph["id"]})
         done.append(f.name)
         print(f"  ✅ Facebook-Story {f.name}")
@@ -134,6 +137,7 @@ def main():
     ap.add_argument("--datum", required=True)
     ap.add_argument("--modus", choices=["test", "veroeffentlichen"], default="test")
     ap.add_argument("--base-url", default=os.environ.get("STORY_BASE_URL", ""))
+    ap.add_argument("--png-ordner", default="", help="Original-PNGs für Facebook (schärfer als JPEG)")
     ap.add_argument("--anzahl", type=int, default=14, help="erwartete Anzahl Stories")
     a = ap.parse_args()
     files = sorted(f for f in Path(a.ordner).glob("[0-9][0-9]_*.jpg") if not f.name.startswith("00_"))
@@ -147,7 +151,7 @@ def main():
     day = st.setdefault(a.datum, {})
     fehler = []
     for name, gen in (("Instagram", lambda: publish_instagram(files, a.base_url, day)),
-                      ("Facebook", lambda: publish_facebook(files, day))):
+                      ("Facebook", lambda: publish_facebook(files, day, a.png_ordner or None))):
         try:
             for _ in gen():
                 save_state(st)                                # nach jeder Story sichern

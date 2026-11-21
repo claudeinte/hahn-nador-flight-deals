@@ -422,7 +422,7 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
         fT = p.font("extrabold", 40)
         p.d.text((PAD + 66, top + 25), label.upper(), font=fT, fill=(255, 255, 255), anchor="lm")
         x = PAD + 66 + p.tw(label.upper(), fT) + 16
-        f2 = p.font("semibold", 25)
+        f2 = p.font("bold", 26)
         o, d_ = route.split("-")
         cc = {"HHN": "DE", "NDR": "MA"}
         for i, code in enumerate((o, d_)):
@@ -495,14 +495,14 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
     p.d.text((W / 2, y), "Die Flugpreise können sich im Laufe des Tages jederzeit ändern.",
              font=p.fit("Die Flugpreise können sich im Laufe des Tages jederzeit ändern.", "bold", 30, W - 2 * PAD),
              fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, y + 34), "Preise in € pro Person (Basic-Tarif) · Veränderung zum Vortag · Buchung nur auf ryanair.com",
-             font=p.font("semibold", 19), fill=(195, 205, 218), anchor="mm")
-    fu = p.font("semibold", 18)
+    _ft = "Preise in € pro Person (Basic-Tarif) · Veränderung zum Vortag · Buchung nur auf ryanair.com"
+    p.d.text((W / 2, y + 34), _ft, font=p.fit(_ft, "bold", 21, W - 2 * PAD), fill=(205, 214, 226), anchor="mm")
+    fu = p.font("bold", 21)
     tw_ = p.tw("Unabhängige Infoseite · keine Verbindung zu Ryanair", fu)
     p.d.rounded_rectangle((W / 2 - tw_ / 2 - 14, H - 38, W / 2 + tw_ / 2 + 14, H - 7), 14, fill=(0, 0, 0, 150) if False else lerp(th["body"][1], (0, 0, 0), 0.4))
     for dx, dy in ((2, 2), (0, 0)):
         p.d.text((W / 2 + dx, H - 22 + dy), "Unabhängige Infoseite · keine Verbindung zu Ryanair",
-                 font=p.font("semibold", 18), fill=(0, 0, 0) if dx else (240, 244, 250), anchor="mm")
+                 font=p.font("bold", 21), fill=(0, 0, 0) if dx else (240, 244, 250), anchor="mm")
     if testdaten:
         lab = "VORSCHAU · Veränderungen = TESTDATEN"
         fv = p.font("extrabold", 20)
@@ -625,7 +625,7 @@ def render_summary(cfg, snap, months, now):
         p.d.ellipse((x_, hy - 21, x_ + 42, hy + 21), fill=t.accent)
         p.plane(x_ + 21, hy, 17, -18 if outb else 198, (255, 255, 255))
         p.d.text((x_ + 52, hy - 8), lab, font=p.font("extrabold", 28), fill=(255, 255, 255), anchor="lm")
-        p.d.text((x_ + 53, hy + 19), rt, font=p.font("semibold", 19), fill=(190, 205, 225), anchor="lm")
+        p.d.text((x_ + 53, hy + 19), rt, font=p.font("bold", 21), fill=(190, 205, 225), anchor="lm")
     p.d.text((PAD + 6, hy), "MONAT", font=p.font("extrabold", 26), fill=(170, 185, 205), anchor="lm")
 
     # Preisfarben (nur in dieser Übersicht): <25 grün · 25–49,99 gelb · 50–100 orange · >100 rot
@@ -670,10 +670,10 @@ def render_summary(cfg, snap, months, now):
     p.d.text((W / 2, y), "Die Flugpreise können sich im Laufe des Tages jederzeit ändern.",
              font=p.fit("Die Flugpreise können sich im Laufe des Tages jederzeit ändern.", "bold", 30, W - 2 * PAD),
              fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, y + 34), "Preise pro Person (Basic-Tarif) · nur kommende Tage · Buchung nur auf ryanair.com",
-             font=p.font("semibold", 19), fill=(195, 205, 218), anchor="mm")
+    _ft = "Preise pro Person (Basic-Tarif) · nur kommende Tage · Buchung nur auf ryanair.com"
+    p.d.text((W / 2, y + 34), _ft, font=p.fit(_ft, "bold", 21, W - 2 * PAD), fill=(205, 214, 226), anchor="mm")
     lab = "Unabhängige Infoseite · keine Verbindung zu Ryanair"
-    fu = p.font("semibold", 18)
+    fu = p.font("bold", 21)
     p.d.text((W / 2, H - 22), lab, font=fu, fill=(220, 228, 240), anchor="mm")
     return p.img
 
@@ -723,8 +723,8 @@ def _footer(p, extra="Preise pro Person (Basic-Tarif) · Hin- und Rückflug einz
     y = 1746
     msg = "Die Flugpreise können sich im Laufe des Tages jederzeit ändern."
     p.d.text((W / 2, y), msg, font=p.fit(msg, "bold", 30, W - 2 * PAD), fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, y + 34), extra, font=p.fit(extra, "semibold", 19, W - 2 * PAD), fill=(195, 205, 218), anchor="mm")
-    p.d.text((W / 2, H - 22), "Unabhängige Infoseite · keine Verbindung zu Ryanair", font=p.font("semibold", 18),
+    p.d.text((W / 2, y + 34), extra, font=p.fit(extra, "bold", 21, W - 2 * PAD), fill=(195, 205, 218), anchor="mm")
+    p.d.text((W / 2, H - 22), "Unabhängige Infoseite · keine Verbindung zu Ryanair", font=p.font("bold", 21),
              fill=(220, 228, 240), anchor="mm")
 
 
@@ -760,15 +760,15 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
         p.plane(lx + 19, yy, 15, ang, (255, 255, 255))
         xt = lx + 52
         rt = "Hinflug · Frankfurt-Hahn → Nador" if route == "HHN-NDR" else "Rückflug · Nador → Frankfurt-Hahn"
-        p.d.text((xt, yy - 20), rt, font=p.font("semibold", 21), fill=(160, 178, 200), anchor="lm")
+        p.d.text((xt, yy - 20), rt, font=p.font("bold", 22), fill=(178, 194, 214), anchor="lm")
         dt = f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.%Y} · {f.departure}"
         fdt = p.font("bold", 29)
         p.d.text((xt, yy + 14), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
-        p.d.text((xt + p.tw(dt, fdt) + 14, yy + 14), fmt_price(f.price), font=p.font("semibold", 26), fill=(170, 186, 206), anchor="lm")
+        p.d.text((xt + p.tw(dt, fdt) + 14, yy + 14), fmt_price(f.price), font=p.font("bold", 26), fill=(188, 202, 220), anchor="lm")
     p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12)), fmt_price(tot), font=p.font("extrabold", 58),
              fill=GOLD if (rank or 9) <= 3 or label else (255, 255, 255), anchor="rm")
     p.d.text((W - PAD - 26, top + h / 2 + (60 if label else 36)), f"hin & zurück · {nights} Nächte",
-             font=p.font("semibold", 22), fill=(190, 205, 225), anchor="rm")
+             font=p.font("bold", 23), fill=(190, 205, 225), anchor="rm")
 
 
 def _future(snap, cfg, route, today):
