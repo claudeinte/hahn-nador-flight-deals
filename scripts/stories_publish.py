@@ -135,7 +135,7 @@ def main():
     ap.add_argument("--modus", choices=["test", "veroeffentlichen"], default="test")
     ap.add_argument("--base-url", default=os.environ.get("STORY_BASE_URL", ""))
     a = ap.parse_args()
-    files = sorted(Path(a.ordner).glob("[0-9][0-9]_*.jpg"))
+    files = sorted(f for f in Path(a.ordner).glob("[0-9][0-9]_*.jpg") if not f.name.startswith("00_"))
     if len(files) != 10:
         sys.exit(f"Erwartet 10 Story-Bilder, gefunden {len(files)} – nichts veröffentlicht.")
     print("Stories:", ", ".join(f.name for f in files))
