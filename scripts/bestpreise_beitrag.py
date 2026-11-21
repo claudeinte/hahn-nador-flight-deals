@@ -21,12 +21,16 @@ def dot(p):
     return "🟢" if p < 25 else "🟡" if p < 50 else "🟠" if p <= 100 else "🔴"
 
 
-def instagram_kurz(t, limit=2200):
+def _ig_len(t):
+    return len(t.encode("utf-16-le")) // 2           # Instagram zählt wie UTF-16 (Emojis = 2)
+
+
+def instagram_kurz(t, limit=2190):
     """Instagram erlaubt max. 2200 Zeichen: doppelten Stories-Satz weglassen, Einrückung kürzen,
     notfalls letzte Hashtags streichen."""
     t = t.replace("📲 Alle Tage und Preise findest du täglich in unseren Stories.\n", "")
     t = t.replace("\n   🛫", "\n 🛫").replace("\n   🛬", "\n 🛬")
-    while len(t) > limit:
+    while _ig_len(t) > limit:
         head, tags = t.rstrip("\n").rsplit("\n", 1)
         parts = tags.split()
         if len(parts) <= 8:
