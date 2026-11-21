@@ -21,6 +21,20 @@ def dot(p):
     return "🟢" if p < 25 else "🟡" if p < 50 else "🟠" if p <= 100 else "🔴"
 
 
+def instagram_kurz(t, limit=2200):
+    """Instagram erlaubt max. 2200 Zeichen: doppelten Stories-Satz weglassen, Einrückung kürzen,
+    notfalls letzte Hashtags streichen."""
+    t = t.replace("📲 Alle Tage und Preise findest du täglich in unseren Stories.\n", "")
+    t = t.replace("\n   🛫", "\n 🛫").replace("\n   🛬", "\n 🛬")
+    while len(t) > limit:
+        head, tags = t.rstrip("\n").rsplit("\n", 1)
+        parts = tags.split()
+        if len(parts) <= 8:
+            break
+        t = head + "\n" + " ".join(parts[:-1]) + "\n"
+    return t
+
+
 def main():
     cfg = load_config()
     cfg["route"]["months_ahead"] = v.N_MONATE
@@ -82,7 +96,7 @@ Der günstigste Hin- und Rückflug für jeden Monat (pro Person, nur kommende Ta
 {cfg['page']['hashtags'] if links else cfg['page']['instagram_hashtags']}
 """
     (out / "beitrag.txt").write_text(text(True), encoding="utf-8")
-    (out / "beitrag_instagram.txt").write_text(text(False), encoding="utf-8")
+    (out / "beitrag_instagram.txt").write_text(instagram_kurz(text(False)), encoding="utf-8")
     print(out)
 
 
