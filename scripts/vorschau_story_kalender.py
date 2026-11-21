@@ -122,6 +122,44 @@ def deco_herbst(th, deco):
         _leaf(dd, x, y, rnd.randint(7, 12), rnd.randint(0, 180), (*rnd.choice(th["leaves"]), 220))
 
 
+MEDALS = {   # (hell, mittel, dunkel) – Gold, Silber, Bronze
+    1: ((255, 236, 150), (240, 190, 50), (168, 120, 18)),
+    2: ((250, 252, 255), (200, 206, 216), (120, 128, 142)),
+    3: ((246, 186, 130), (205, 127, 50), (126, 72, 26)),
+}
+RIBBON = ((52, 96, 196), (120, 160, 235))     # Band blau (kein Rot/Grün → keine Verwechslung mit ▲/▼)
+
+
+def draw_medal(img, cx, cy, r, rank, font_path):
+    """Olympia-Medaille mit Band und großer Zahl, 4-fach überabgetastet für glatte Kanten."""
+    from PIL import ImageFont
+    S = 4
+    w, h = int(r * 2.5), int(r * 2.55)
+    lay = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    mx, my = w * S / 2, (h - r - 1) * S             # Mittelpunkt der Scheibe
+    R = r * S
+    bw = r * 0.7 * S                                # Bandbreite
+    for sgn, col in ((-1, RIBBON[0]), (1, RIBBON[1])):
+        top_x = mx + sgn * r * 0.75 * S
+        d.polygon([(top_x - bw / 2, 0), (top_x + bw / 2, 0), (mx + sgn * bw * 0.15 + bw / 2 * (sgn > 0), my - R * 0.7),
+                   (mx + sgn * bw * 0.15 - bw / 2 * (sgn < 0), my - R * 0.7)], fill=col)
+    light, mid, dark = MEDALS[rank]
+    d.ellipse((mx - R - S, my - R - S, mx + R + S, my + R + S), fill=(0, 0, 0, 90))
+    d.ellipse((mx - R, my - R, mx + R, my + R), fill=dark)
+    for k in range(int(R * 0.86), 0, -1):            # Verlauf hell (oben links) → mittel
+        t = k / (R * 0.86)
+        c = lerp(light, mid, t)
+        off = (1 - t) * R * 0.18
+        d.ellipse((mx - k - off, my - k - off, mx + k - off, my + k - off), fill=c)
+    d.ellipse((mx - R * 0.86, my - R * 0.86, mx + R * 0.86, my + R * 0.86), outline=dark, width=max(2, int(S * 1.2)))
+    f = ImageFont.truetype(font_path, int(R * 1.35))
+    d.text((mx, my + S * 0.5), str(rank), font=f, fill=dark, anchor="mm")
+    lay = lay.resize((w, h), Image.LANCZOS)
+    img.paste(lay, (int(cx - w / 2), int(cy - (h - r - 1))), lay)
+    return w
+
+
 def background(th):
     img = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(img)
@@ -208,22 +246,31 @@ def main(ym, testdaten=False):
     p.d.ellipse((lx - 52, ly - 52, lx + 52, ly + 52), fill=(255, 255, 255))
     p.d.ellipse((lx - 47, ly - 47, lx + 47, ly + 47), fill=t.accent)
     p.plane(lx, ly, 56, -35, (255, 255, 255))
-    items = [("▼ günstiger", DOWN), ("▲ teurer", UP), ("● gleich", SAME), ("NEU", NEW), ("– kein Flug", (150, 160, 175)),
-             ("✕ vorbei", (140, 146, 158)), ("★ günstigster Tag", GOLD)]
-    fl = p.font("bold", 22)
-    if p.tw("✕", fl) == 0 or "✕" not in "".join(s for s, _ in items):
-        pass
-    gapl = (W - 2 * PAD - 4 - sum(p.tw(s_, fl) for s_, _ in items)) / (len(items) - 1)
-    x = PAD + 2
-    for s_, col in items:
-        if s_.startswith("✕"):                          # X selbst zeichnen (Glyphe fehlt evtl. in der Schrift)
-            p.d.line((x + 1, 328, x + 15, 342), fill=col, width=3)
-            p.d.line((x + 1, 342, x + 15, 328), fill=col, width=3)
-            p.d.text((x + 22, 335), s_[2:], font=fl, fill=col, anchor="lm")
-            x += 22 + p.tw(s_[2:], fl) + gapl
-            continue
-        p.d.text((x, 335), s_, font=fl, fill=col, anchor="lm")
-        x += p.tw(s_, fl) + gapl
+    items = [("t", "▼ günstiger", DOWN), ("t", "▲ teurer", UP), ("t", "● gleich", SAME), ("t", "NEU", NEW),
+             ("t", "– kein Flug", (150, 160, 175)), ("x", "vorbei", (140, 146, 158)), ("m", "Top 3 günstigste Flüge", GOLD)]
+    fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
+    for fs in range(22, 15, -1):
+        fl = p.font("bold", fs)
+        def iw(k, s_):
+            return p.tw(s_, fl) + (22 if k == "x" else 66 if k == "m" else 0)
+        total = sum(iw(k, s_) for k, s_, _ in items)
+        if total + 6 * 14 <= W - 2 * PAD - 4:
+            break
+    gapl = (W - 2 * PAD - 4 - total) / (len(items) - 1)
+    x, ly2 = PAD + 2, 335
+    for k, s_, col in items:
+        if k == "x":
+            p.d.line((x + 1, ly2 - 7, x + 15, ly2 + 7), fill=col, width=3)
+            p.d.line((x + 1, ly2 + 7, x + 15, ly2 - 7), fill=col, width=3)
+            p.d.text((x + 22, ly2), s_, font=fl, fill=col, anchor="lm")
+        elif k == "m":
+            for i in range(3):
+                draw_medal(p.img, x + 10 + i * 21, ly2 + 3, 9, i + 1, fpath)
+            p.d = ImageDraw.Draw(p.img)
+            p.d.text((x + 66, ly2), s_, font=fl, fill=col, anchor="lm")
+        else:
+            p.d.text((x, ly2), s_, font=fl, fill=col, anchor="lm")
+        x += iw(k, s_) + gapl
 
     # ---------- Kalender ----------
     weeks = pycal.Calendar(firstweekday=0).monthdatescalendar(YY, MM)
@@ -233,7 +280,9 @@ def main(ym, testdaten=False):
 
     def block(top, route, label, outbound):
         fares = {f.day: f for f in snap.fares(route) if f.day.year == YY and f.day.month == MM and f.day >= today}
-        best = min(fares.values(), key=lambda f: (f.price, f.day)) if fares else None
+        ranked = sorted(fares.values(), key=lambda f: (f.price, f.day))[:3]   # Top 3 (nur kommende Tage)
+        rank = {f.day: i + 1 for i, f in enumerate(ranked)}
+        best = ranked[0] if ranked else None
         # großes Flugzeug in Flugrichtung: Hinflug → nach rechts, Rückflug ← nach links
         p.d.ellipse((PAD, top - 2, PAD + 54, top + 52), fill=th["accent"])
         p.plane(PAD + 27, top + 25, 23, -18 if outbound else 198, (255, 255, 255))
@@ -251,8 +300,11 @@ def main(ym, testdaten=False):
             p.d.text((x, top + 25), cfg.city(code), font=f2, fill=(232, 238, 246), anchor="lm")
             x += p.tw(cfg.city(code), f2) + 6
         if best:
-            p.d.text((W - PAD - 2, top + 25), f"★ ab {fmt_price(best.price)}", font=p.font("extrabold", 30),
-                     fill=GOLD, anchor="rm")
+            lab_ = f"ab {fmt_price(best.price)}"
+            fa_ = p.font("extrabold", 30)
+            p.d.text((W - PAD - 2, top + 25), lab_, font=fa_, fill=GOLD, anchor="rm")
+            draw_medal(p.img, W - PAD - 2 - p.tw(lab_, fa_) - 22, top + 30, 13, 1, fpath)
+            p.d = ImageDraw.Draw(p.img)
         for c, wd in enumerate(["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]):
             p.d.text((PAD + c * (cw + G) + cw / 2, top + 60), wd, font=p.font("bold", 22),
                      fill=(175, 188, 205) if c < 6 else (255, 190, 140), anchor="mm")
@@ -279,13 +331,13 @@ def main(ym, testdaten=False):
                     continue
                 price = f"{f.price:.2f}".replace(".", ",")
                 fp = p.fit(price, "extrabold", 42, cw - 10)
-                p.d.text((x0 + cw - 6, yy + ch * 0.64), price, font=fp, fill=(255, 255, 255), anchor="rs")
+                p.d.text((x0 + cw - 6, yy + ch * 0.72), price, font=fp, fill=(255, 255, 255), anchor="rs")
                 if testdaten:
                     dv = fake_delta(route, day)
                 else:
                     old = prev.get((route, day))
                     dv = None if old is None else round(f.price - old, 2)
-                by = yy + ch - 7
+                by = yy + ch - 5
                 if dv is None:
                     p.d.rounded_rectangle((x0 + cw - 66, by - 25, x0 + cw - 5, by + 1), 12, fill=NEW)
                     p.d.text((x0 + cw - 35, by - 11), "NEU", font=p.font("extrabold", 18), fill=(255, 255, 255), anchor="mm")
@@ -295,9 +347,11 @@ def main(ym, testdaten=False):
                     txt = ("▼ " if dv < 0 else "▲ ") + fmt_delta(dv)
                     p.d.text((x0 + cw - 6, by), txt, font=p.fit(txt, "bold", 25, cw - 10),
                              fill=DOWN if dv < 0 else UP, anchor="rs")
-                if best and day == best.day:
-                    p.d.rounded_rectangle(box, 12, outline=GOLD, width=5)
-                    p.d.text((x0 + cw - 9, yy + 18), "★", font=p.font("bold", 28), fill=GOLD, anchor="rm")
+                if day in rank:                          # Top 3: Rahmen + Medaille oben rechts
+                    rk = rank[day]
+                    p.d.rounded_rectangle(box, 12, outline=MEDALS[rk][1], width=5)
+                    draw_medal(p.img, x0 + cw - 23, yy + 24, 15, rk, fpath)
+                    p.d = ImageDraw.Draw(p.img)
         return y0 + len(weeks) * (ch + G) - G
 
     end1 = block(TOP, cfg.route_out, "Hinflug", True)
