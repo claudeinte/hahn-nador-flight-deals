@@ -134,7 +134,7 @@ def main():
     ap.add_argument("--datum", required=True)
     ap.add_argument("--modus", choices=["test", "veroeffentlichen"], default="test")
     ap.add_argument("--base-url", default=os.environ.get("STORY_BASE_URL", ""))
-    ap.add_argument("--anzahl", type=int, default=12, help="erwartete Anzahl Stories (1 Übersicht + Monate)")
+    ap.add_argument("--anzahl", type=int, default=14, help="erwartete Anzahl Stories")
     a = ap.parse_args()
     files = sorted(f for f in Path(a.ordner).glob("[0-9][0-9]_*.jpg") if not f.name.startswith("00_"))
     if len(files) != a.anzahl:

@@ -1,7 +1,7 @@
 name: Tages-Stories (Instagram + Facebook)
 
 # Start: von Hand unter "Actions" oder per cron-job.org (workflow_dispatch über die GitHub-API).
-# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 12 Stories auf IG und FB.
+# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 14 Stories auf IG und FB.
 on:
   workflow_dispatch:
     inputs:
@@ -25,7 +25,7 @@ jobs:
     env:
       PYTHONPATH: src
       TZ: Europe/Berlin
-      ANZAHL: "12"          # 1 Übersicht + 11 Monatskalender
+      ANZAHL: "14"          # Übersicht + Top 5 Kombis + nach Dauer + 11 Monatskalender
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +54,7 @@ jobs:
           print("Heute schon komplett veröffentlicht:" , fertig)
           EOF
 
-      - name: Preise abfragen und 12 Story-Bilder erstellen
+      - name: Preise abfragen und 14 Story-Bilder erstellen
         if: steps.tag.outputs.fertig == 'nein'
         run: python scripts/vorschau_story_kalender.py --alle
 

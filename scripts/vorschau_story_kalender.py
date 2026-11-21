@@ -512,7 +512,7 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
     return p.img
 
 
-def story_view(img, cfg, idx=1, n=N_MONATE + 1):
+def story_view(img, cfg, idx=1, n=N_MONATE + 3):
     """Vorschau wie in der Story-Ansicht (Instagram-Bedienelemente simuliert), halbe Größe."""
     p = Painter(cfg)
     m = img.convert("RGBA")
@@ -661,6 +661,151 @@ def render_summary(cfg, snap, months, now):
     return p.img
 
 
+def _frame(cfg, now, title, subtitle):
+    """Gemeinsamer Rahmen für Sonder-Stories: Nachthimmel mit Flugbogen, Titel, Prüfzeit, Untertitel, Logo."""
+    p = Painter(cfg)
+    t = p.t
+    img = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / H))
+    deco = Image.new("RGBA", (W, DECO_END), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(deco)
+    for y in range(DECO_END):
+        dd.line((0, y, W, y), fill=(*lerp((40, 70, 140), (14, 28, 60), y / DECO_END), 255))
+    rnd = random.Random(2)
+    for _ in range(60):
+        x, y = rnd.randint(0, W), rnd.randint(4, DECO_END - 10)
+        dd.ellipse((x - 1.6, y - 1.6, x + 1.6, y + 1.6), fill=(255, 255, 255, rnd.randint(110, 230)))
+    pts = [(120 + (840 * i / 40), 130 - 95 * math.sin(math.pi * i / 40)) for i in range(41)]
+    for i in range(0, 40, 2):
+        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 200), width=4)
+    img.paste(deco, (0, 0), deco)
+    p.img = img
+    p.d = ImageDraw.Draw(p.img)
+    p.d.ellipse((540 - 30, 35 - 30, 540 + 30, 35 + 30), fill=t.accent)
+    p.plane(540, 35, 24, 0, (255, 255, 255))
+    ov = Image.new("RGBA", (W, 60), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    for y in range(60):
+        od.line((0, y, W, y), fill=(12, 24, 46, int(255 * min(1, y / 34))))
+    p.img.paste(ov, (0, DECO_END - 26), ov)
+    p.d = ImageDraw.Draw(p.img)
+    ftt = p.fit(title, "extrabold", 112, W - 2 * PAD - 128)
+    p.d.text((PAD + 3, 215), title, font=ftt, fill=(0, 0, 0), anchor="lm")
+    p.d.text((PAD, 212), title, font=ftt, fill=(255, 255, 255), anchor="lm")
+    lx, ly = W - PAD - 52, 214
+    p.d.ellipse((lx - 52, ly - 52, lx + 52, ly + 52), fill=(255, 255, 255))
+    p.d.ellipse((lx - 47, ly - 47, lx + 47, ly + 47), fill=t.accent)
+    p.plane(lx, ly, 56, -35, (255, 255, 255))
+    chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
+    p.d.text((PAD + 2, 292), chk, font=p.fit(chk, "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="lm")
+    p.d.text((PAD + 2, 336), subtitle, font=p.fit(subtitle, "bold", 27, W - 2 * PAD - 8), fill=(190, 205, 225), anchor="lm")
+    return p
+
+
+def _footer(p, extra="Preise pro Person (Basic-Tarif) · Hin- und Rückflug einzeln gebucht · Buchung nur auf ryanair.com"):
+    y = 1746
+    msg = "Die Flugpreise können sich im Laufe des Tages jederzeit ändern."
+    p.d.text((W / 2, y), msg, font=p.fit(msg, "bold", 30, W - 2 * PAD), fill=(255, 255, 255), anchor="mm")
+    p.d.text((W / 2, y + 34), extra, font=p.fit(extra, "semibold", 19, W - 2 * PAD), fill=(195, 205, 218), anchor="mm")
+    p.d.text((W / 2, H - 22), "Unabhängige Infoseite · keine Verbindung zu Ryanair", font=p.font("semibold", 18),
+             fill=(220, 228, 240), anchor="mm")
+
+
+def _rank_badge(p, cx, cy, r, rank, fpath):
+    if rank <= 3:
+        draw_medal(p.img, cx, cy, r, rank, fpath)
+        p.d = ImageDraw.Draw(p.img)
+    else:                                                   # Platz 4/5: schlichte Plakette
+        p.d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(60, 78, 104), outline=(150, 168, 192), width=3)
+        p.d.text((cx, cy + 1), str(rank), font=p.font("extrabold", int(r * 1.3)), fill=(235, 242, 250), anchor="mm")
+
+
+def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
+    """Karte: Hinflug + Rückflug + Gesamtpreis. label = z. B. „1 Woche“ statt Medaille."""
+    t = p.t
+    tot = o.price + r_.price
+    nights = (r_.day - o.day).days
+    col = MEDALS[rank][1] if rank and rank <= 3 else (70, 90, 118)
+    p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, fill=(20, 36, 62), outline=col, width=4)
+    x0 = PAD + 26
+    if label:
+        p.d.rounded_rectangle((x0, top + 18, x0 + p.tw(label, p.font("extrabold", 30)) + 36, top + 66), 24, fill=t.accent)
+        p.d.text((x0 + 18, top + 42), label, font=p.font("extrabold", 30), fill=(255, 255, 255), anchor="lm")
+    else:
+        _rank_badge(p, x0 + 34, top + h / 2 + 4, 34, rank, fpath)
+    lx = x0 + (0 if label else 92)
+    rows = ((o, "Hin", -18, "HHN-NDR"), (r_, "Rück", 198, "NDR-HHN"))
+    y1 = top + (h * 0.47 if label else h * 0.33)
+    step = h * 0.27 if label else h * 0.34
+    for k, (f, lab, ang, route) in enumerate(rows):
+        yy = y1 + k * step
+        p.d.ellipse((lx, yy - 19, lx + 38, yy + 19), fill=t.accent)
+        p.plane(lx + 19, yy, 15, ang, (255, 255, 255))
+        fw = p.flag_pair(route, lx + 48, yy - 10, 20)
+        xt = lx + 58 + fw
+        dt = f"{WOCHENTAGE[f.day.weekday()][:2]}, {f.day:%d.%m.%Y} · {f.departure}"
+        fdt = p.font("bold", 29)
+        p.d.text((xt, yy), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
+        p.d.text((xt + p.tw(dt, fdt) + 14, yy), fmt_price(f.price), font=p.font("semibold", 26), fill=(170, 186, 206), anchor="lm")
+    p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12)), fmt_price(tot), font=p.font("extrabold", 58),
+             fill=GOLD if (rank or 9) <= 3 or label else (255, 255, 255), anchor="rm")
+    p.d.text((W - PAD - 26, top + h / 2 + (60 if label else 36)), f"hin & zurück · {nights} Nächte",
+             font=p.font("semibold", 22), fill=(190, 205, 225), anchor="rm")
+
+
+def _future(snap, cfg, route, today):
+    return [f for f in snap.fares(route) if f.day >= today]
+
+
+def render_kombis(cfg, snap, now, n=5, min_n=3, max_n=30):
+    """Story: Top 5 günstigste Hin- und Rückflug-Kombinationen (verschiedene Hinflugtage)."""
+    today = now.date()
+    outs, rets = _future(snap, cfg, cfg.route_out, today), _future(snap, cfg, cfg.route_ret, today)
+    combos = sorted(((o.price + r.price, o.day, r.day, o, r) for o in outs for r in rets
+                     if min_n <= (r.day - o.day).days <= max_n), key=lambda c: (round(c[0], 2), c[1], c[2]))
+    top, used = [], set()
+    for c in combos:
+        if c[1] in used:
+            continue
+        used.add(c[1])
+        top.append(c)
+        if len(top) == n:
+            break
+    p = _frame(cfg, now, "TOP 5 KOMBINATIONEN",
+               f"Die günstigsten Hin- und Rückflüge ({min_n}–{max_n} Nächte) der nächsten {N_MONATE} Monate")
+    fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
+    y0, y1, gap = 380, 1712, 14
+    h = (y1 - y0 - gap * (n - 1)) / n
+    for i, c in enumerate(top):
+        _combo_card(p, y0 + i * (h + gap), h, i + 1, c[3], c[4], fpath)
+    _footer(p)
+    return p.img
+
+
+def render_dauer(cfg, snap, now):
+    """Story: günstigster Hin- und Rückflug je Aufenthaltsdauer (1 Woche, 2 Wochen, 3 Wochen, 1 Monat)."""
+    today = now.date()
+    outs, rets = _future(snap, cfg, cfg.route_out, today), _future(snap, cfg, cfg.route_ret, today)
+    spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]
+    p = _frame(cfg, now, "GÜNSTIG NACH DAUER", "Bester Hin- und Rückflug für 1, 2 und 3 Wochen oder 1 Monat in Nador")
+    fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
+    y0, y1, gap = 380, 1712, 16
+    h = (y1 - y0 - gap * 3) / 4
+    for i, (lab, a_, b_) in enumerate(spans):
+        best = min(((o.price + r.price, o.day, o, r) for o in outs for r in rets if a_ <= (r.day - o.day).days <= b_),
+                   default=None, key=lambda c: (round(c[0], 2), c[1]))
+        top = y0 + i * (h + gap)
+        if not best:
+            p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, fill=(20, 36, 62))
+            p.d.text((W / 2, top + h / 2), f"{lab}: keine passenden Flüge", font=p.font("bold", 32), fill=(170, 180, 195), anchor="mm")
+            continue
+        _combo_card(p, top, h, None, best[2], best[3], fpath, label=f"{lab} ({a_}–{b_} Nächte)")
+    _footer(p)
+    return p.img
+
+
 def main_alle(testdaten=False):
     cfg = load_config()
     cfg["route"]["months_ahead"] = N_MONATE
@@ -676,9 +821,10 @@ def main_alle(testdaten=False):
     months = next_months(now.date(), N_MONATE)
     out = PROJ / "output" / "stories" / now.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
-    imgs = [render_summary(cfg, snap, months, now)]
-    imgs[0].save(out / "01_uebersicht.png")
-    for i, (y_, m_) in enumerate(months, start=2):
+    imgs = [render_summary(cfg, snap, months, now), render_kombis(cfg, snap, now), render_dauer(cfg, snap, now)]
+    for im, name in zip(imgs, ("01_uebersicht", "02_top5_kombinationen", "03_nach_dauer")):
+        im.save(out / f"{name}.png")
+    for i, (y_, m_) in enumerate(months, start=4):
         im = render_month(cfg, snap, prev, y_, m_, now, testdaten)
         im.save(out / f"{i:02d}_kalender_{y_}-{m_:02d}.png")
         imgs.append(im)
