@@ -546,7 +546,7 @@ def next_months(today, n=9):
     return out
 
 
-def _header_sky(deco, kind):
+def _header_sky(deco, kind, arc=True):
     """Kopf-Himmel für Sonder-Stories: 'nacht' (Sterne), 'tag' (blauer Himmel, Sonne, Wolken), 'gold' (Sonnenuntergang, Funkeln)."""
     dd = ImageDraw.Draw(deco)
     top, bot = {"nacht": ((40, 70, 140), (14, 28, 60)), "tag": ((96, 170, 236), (40, 104, 186)),
@@ -575,6 +575,8 @@ def _header_sky(deco, kind):
             col = (255, 246, 200, rnd.randint(170, 250))
             dd.polygon([(x, y - r_), (x + r_ * .28, y - r_ * .28), (x + r_, y), (x + r_ * .28, y + r_ * .28),
                         (x, y + r_), (x - r_ * .28, y + r_ * .28), (x - r_, y), (x - r_ * .28, y - r_ * .28)], fill=col)
+    if not arc:
+        return
     pts = [(170 + (740 * i / 40), ARC_Y - 72 * math.sin(math.pi * i / 40)) for i in range(41)]
     for i in range(0, 40, 2):
         dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 230), width=5)
@@ -840,6 +842,110 @@ def render_dauer(cfg, snap, now):
             continue
         _combo_card(p, top, h, None, best[2], best[3], fpath, label=f"{lab} ({a_}–{b_} Nächte)")
     _footer(p)
+    return p.img
+
+
+def render_summary_feed(cfg, snap, months, now):
+    """„Bestpreise pro Monat“ im Instagram-Feed-Format 4:5 (1080×1350) – wird im Feed nicht beschnitten."""
+    FH = 1350
+    today = now.date()
+    p = Painter(cfg)
+    t = p.t
+    img = Image.new("RGB", (W, FH))
+    d = ImageDraw.Draw(img)
+    for y in range(FH):
+        d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / FH))
+    deco = Image.new("RGBA", (W, 130), (0, 0, 0, 0))
+    _header_sky(deco, "tag", arc=False)           # eigener, flacherer Bogen weiter unten
+    img.paste(deco, (0, 0), deco)
+    p.img = img
+    p.d = ImageDraw.Draw(p.img)
+    ay, amp = 104, 52
+    pts = [(170 + (740 * i / 40), ay - amp * math.sin(math.pi * i / 40)) for i in range(41)]
+    for i in range(0, 40, 2):
+        p.d.line((pts[i], pts[i + 1]), fill=(255, 255, 255), width=5)
+    for (x, y), col in (((170, ay), t.accent), ((910, ay), t.green)):
+        p.d.ellipse((x - 9, y - 9, x + 9, y + 9), fill=col, outline=(255, 255, 255), width=3)
+    f = p.font("extrabold", 30)
+    tw_ = p.tw("HHN", f)
+    p.d.text((152 - tw_ + 2, ay + 2), "HHN", font=f, fill=(0, 0, 0), anchor="lm")
+    p.d.text((152 - tw_, ay), "HHN", font=f, fill=(255, 255, 255), anchor="lm")
+    p.flag("DE", 152 - tw_ - 50, ay - 13, 26)
+    p.d.text((930, ay + 2), "Nador", font=f, fill=(0, 0, 0), anchor="lm")
+    p.d.text((928, ay), "Nador", font=f, fill=(255, 255, 255), anchor="lm")
+    p.flag("MA", 928 + p.tw("Nador", f) + 10, ay - 13, 26)
+    px, py = 540, ay - amp
+    p.d.ellipse((px - 40, py - 40, px + 40, py + 40), fill=(255, 255, 255))
+    p.d.ellipse((px - 35, py - 35, px + 35, py + 35), fill=t.accent)
+    p.plane(px, py, 38, 0, (255, 255, 255))
+    ov = Image.new("RGBA", (W, 50), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    for y in range(50):
+        od.line((0, y, W, y), fill=(12, 24, 46, int(255 * min(1, y / 28))))
+    p.img.paste(ov, (0, 112), ov)
+    p.d = ImageDraw.Draw(p.img)
+
+    title = "BESTPREISE PRO MONAT"
+    ftt = p.fit(title, "extrabold", 96, W - 2 * PAD)
+    p.d.text((W / 2 + 3, 188), title, font=ftt, fill=(0, 0, 0), anchor="mm")
+    p.d.text((W / 2, 185), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
+    p.d.text((W / 2, 250), chk, font=p.fit(chk, "bold", 28, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
+    sub = f"Hin- und Rückflug · die günstigsten Preise der nächsten {len(months)} Monate"
+    p.d.text((W / 2, 288), sub, font=p.fit(sub, "bold", 24, W - 2 * PAD - 8), fill=(190, 205, 225), anchor="mm")
+
+    col1, col2 = 330, 700
+    hy = 330
+    for x_, lab, rt, outb in ((col1, "HINFLUG", "Frankfurt-Hahn → Nador", True), (col2, "RÜCKFLUG", "Nador → Frankfurt-Hahn", False)):
+        p.d.ellipse((x_, hy - 19, x_ + 38, hy + 19), fill=t.accent)
+        p.plane(x_ + 19, hy, 15, -18 if outb else 198, (255, 255, 255))
+        p.d.text((x_ + 48, hy - 8), lab, font=p.font("extrabold", 25), fill=(255, 255, 255), anchor="lm")
+        p.d.text((x_ + 49, hy + 16), rt, font=p.font("bold", 17), fill=(190, 205, 225), anchor="lm")
+    p.d.text((PAD + 6, hy), "MONAT", font=p.font("extrabold", 23), fill=(170, 185, 205), anchor="lm")
+    BANDS = [((34, 197, 94), "unter 25 €"), ((250, 204, 21), "25 – 49,99 €"), ((251, 146, 60), "50 – 100 €"),
+             ((240, 82, 82), "über 100 €")]
+
+    def band(pr):
+        return BANDS[0][0] if pr < 25 else BANDS[1][0] if pr < 50 else BANDS[2][0] if pr <= 100 else BANDS[3][0]
+    fl = p.font("bold", 22)
+    widths = [28 + p.tw(lab, fl) for _, lab in BANDS]
+    gap = (W - 2 * PAD - 12 - sum(widths)) / (len(BANDS) - 1)
+    x, ly2 = PAD + 6, 378
+    for (col, lab), w_ in zip(BANDS, widths):
+        p.d.ellipse((x, ly2 - 10, x + 20, ly2 + 10), fill=col)
+        p.d.text((x + 28, ly2), lab, font=fl, fill=col, anchor="lm")
+        x += w_ + gap
+
+    rows = []
+    for (y_, m_) in months:
+        def cheapest(route):
+            fs = [f_ for f_ in snap.fares(route) if f_.day.year == y_ and f_.day.month == m_ and f_.day >= today]
+            return min(fs, key=lambda f_: (f_.price, f_.day)) if fs else None
+        rows.append(((y_, m_), cheapest(cfg.route_out), cheapest(cfg.route_ret)))
+    top, bottom, gp = 402, 1272, 5
+    n = len(rows)
+    rh = (bottom - top - gp * (n - 1)) / n
+    for i, ((y_, m_), fo, fr) in enumerate(rows):
+        yy = top + i * (rh + gp)
+        th = THEMES[m_]
+        p.d.rounded_rectangle((PAD, yy, W - PAD, yy + rh), 12, fill=th["cell"])
+        p.d.rounded_rectangle((PAD, yy, PAD + 10, yy + rh), 5, fill=th["accent"])
+        p.d.text((PAD + 26, yy + rh / 2), f"{MONATE[m_ - 1]} {str(y_)[2:]}", font=p.font("extrabold", 28), fill=(255, 255, 255), anchor="lm")
+        for x_, f_ in ((col1, fo), (col2, fr)):
+            if not f_:
+                p.d.text((x_ + 100, yy + rh / 2), "–", font=p.font("bold", 32), fill=(110, 120, 135), anchor="mm")
+                continue
+            col = band(f_.price)
+            p.d.rounded_rectangle((x_ - 10, yy + 9, x_ - 5, yy + rh - 9), 3, fill=col)
+            pr = fmt_price(f_.price)
+            fp = p.font("extrabold", 34)
+            p.d.text((x_ + 4, yy + rh / 2 - 1), pr, font=fp, fill=col, anchor="lm")
+            p.d.text((x_ + 12 + p.tw(pr, fp), yy + rh / 2 + 2), f"{WOCHENTAGE[f_.day.weekday()][:2]}, {f_.day:%d.%m.}",
+                     font=p.font("bold", 20), fill=(205, 214, 228), anchor="lm")
+    msg = "Die Flugpreise können sich im Laufe des Tages jederzeit ändern."
+    p.d.text((W / 2, 1298), msg, font=p.fit(msg, "bold", 26, W - 2 * PAD), fill=(255, 255, 255), anchor="mm")
+    ex = "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com · Unabhängige Infoseite, keine Verbindung zu Ryanair"
+    p.d.text((W / 2, 1330), ex, font=p.fit(ex, "bold", 18, W - 2 * PAD), fill=(195, 205, 218), anchor="mm")
     return p.img
 
 

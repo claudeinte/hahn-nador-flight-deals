@@ -1,7 +1,8 @@
 """Beitrag „Bestpreise pro Monat“: Bild (gleich wie Story 01) + Text mit Buchungslink für jedes Ticket.
 
 Aufruf: .venv/bin/python scripts/bestpreise_beitrag.py
-Ausgabe: output/facebook_ahora/bestpreise_<datum>/bestpreise_pro_monat.png + beitrag.txt (+ beitrag_instagram.txt ohne Links)
+Ausgabe: output/facebook_ahora/bestpreise_<datum>/bestpreise_pro_monat.png (9:16), bestpreise_instagram_4x5.png
+(1080×1350 für den Instagram-Feed), beitrag.txt (Facebook, mit Links), beitrag_instagram.txt (ohne Links)
 Bild und Text stammen aus derselben Preisabfrage → Preise stimmen immer überein.
 """
 import sys
@@ -32,6 +33,7 @@ def main():
     out = PROJ / "output" / "facebook_ahora" / f"bestpreise_{now:%Y-%m-%d}"
     out.mkdir(parents=True, exist_ok=True)
     v.render_summary(cfg, snap, months, now).save(out / "bestpreise_pro_monat.png")
+    v.render_summary_feed(cfg, snap, months, now).save(out / "bestpreise_instagram_4x5.png")   # Instagram-Feed
 
     def cheapest(route, y, m):
         fs = [f for f in snap.fares(route) if f.day.year == y and f.day.month == m and f.day >= today]
