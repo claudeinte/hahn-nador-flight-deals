@@ -56,13 +56,13 @@ def main():
         bo = min(allo, key=lambda f: (f.price, f.day))
         br = min(allr, key=lambda f: (f.price, f.day))
         book = ("👉 Buchung nur über die offizielle Ryanair-Seite: ryanair.com" if links
-                else "👉 Buchung nur über die offizielle Ryanair-Seite: ryanair.com (Links in unseren Stories)")
+                else "👉 Buchung nur über die offizielle Ryanair-Seite: ryanair.com")
         return f"""{edition_line(now)}
 
 💶 Bestpreise pro Monat: 🇩🇪 Frankfurt-Hahn ✈️ 🇲🇦 Nador – Hinflug ab {fmt_price(bo.price)}, Rückflug ab {fmt_price(br.price)}!
 🕒 Preise bei Ryanair {fmt_checked(now)} – können sich im Laufe des Tages jederzeit ändern.
 
-{cfg['page']['stories_hint']}
+{cfg['page']['stories_hint'] if links else cfg['page']['instagram_stories_hint']}
 
 Der günstigste Hin- und Rückflug für jeden Monat (pro Person, nur kommende Tage):
 
@@ -79,7 +79,7 @@ Der günstigste Hin- und Rückflug für jeden Monat (pro Person, nur kommende Ta
 
 ℹ️ {cfg['page']['disclaimer']} Wir verkaufen keine Tickets – gebucht wird ausschließlich auf ryanair.com.
 
-{cfg['page']['hashtags']}
+{cfg['page']['hashtags'] if links else cfg['page']['instagram_hashtags']}
 """
     (out / "beitrag.txt").write_text(text(True), encoding="utf-8")
     (out / "beitrag_instagram.txt").write_text(text(False), encoding="utf-8")
