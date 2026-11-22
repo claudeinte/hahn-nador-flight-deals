@@ -582,6 +582,51 @@ def _header_sky(deco, kind, arc=True):
         dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 230), width=5)
 
 
+BODY = {   # Kopf-Unterkante → Mitte → unten
+    "tag": ((40, 104, 186), (18, 46, 96), (6, 14, 34)),
+    "gold": ((168, 74, 96), (70, 30, 66), (16, 10, 30)),
+    "nacht": ((14, 28, 60), (12, 22, 52), (4, 8, 22)),
+}
+
+
+def _story_body(kind):
+    """Ganzer Hintergrund für Sonder-Stories: Himmel geht weich in einen getönten Körper über,
+    dazu Sterne/Funkeln und Flugzeuge mit Kondensstreifen am Rand."""
+    c0, c1, c2 = BODY[kind]
+    img = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        if y < HH:
+            col = c0
+        else:
+            u = (y - HH) / (H - HH)
+            col = lerp(c0, c1, u / 0.35) if u < 0.35 else lerp(c1, c2, (u - 0.35) / 0.65)
+        d.line((0, y, W, y), fill=col)
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lay)
+    rnd = random.Random({"tag": 1, "gold": 2, "nacht": 3}[kind])
+    for _ in range(90):
+        x, y = rnd.randint(0, W), rnd.randint(HH, H)
+        r_ = rnd.choice((1.2, 1.6, 2.2))
+        ld.ellipse((x - r_, y - r_, x + r_, y + r_), fill=(255, 255, 255, rnd.randint(40, 120)))
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gcol = {"tag": (90, 160, 255, 50), "gold": (255, 170, 90, 46), "nacht": (120, 140, 255, 40)}[kind]
+    ImageDraw.Draw(glow).ellipse((60, 520, 1020, 1500), fill=gcol)
+    lay.alpha_composite(glow.filter(ImageFilter.GaussianBlur(150)))
+    planes = [(170, 1850, 8, 1.0), (1000, 1886, -6, 0.8)]
+    for x, y, ang, sc in planes:
+        a = math.radians(ang)
+        L = 400 * sc
+        for k in range(30):
+            t0, t1 = k / 30, (k + 1) / 30
+            ld.line((x - L * (1 - t0) * math.cos(a), y - L * (1 - t0) * math.sin(a),
+                     x - L * (1 - t1) * math.cos(a), y - L * (1 - t1) * math.sin(a)),
+                    fill=(255, 255, 255, int(12 + 100 * t1)), width=max(2, int(7 * sc * t1)))
+    base = img.convert("RGBA")
+    base.alpha_composite(lay)
+    return base.convert("RGB"), planes
+
+
 def _route_marks(p):
     """Start/Ziel am Flugbogen: links 🇩🇪 HHN, rechts Nador 🇲🇦."""
     t = p.t
@@ -613,23 +658,15 @@ def render_summary(cfg, snap, months, now):
     today = now.date()
     p = Painter(cfg)
     t = p.t
-    img = Image.new("RGB", (W, H))
-    d = ImageDraw.Draw(img)
-    for y in range(H):
-        d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / H))
-    # Kopf-Deko: Nachthimmel mit Sternen und Flugbogen Frankfurt-Hahn → Nador
+    img, planes_ = _story_body("tag")
     deco = Image.new("RGBA", (W, HH), (0, 0, 0, 0))
     _header_sky(deco, "tag")
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
+    for x_, y_, a_, sc_ in planes_:
+        p.plane(x_, y_, int(44 * sc_), a_, (255, 255, 255))
     _route_marks(p)
-    ov = Image.new("RGBA", (W, 60), (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
-    for y in range(60):
-        od.line((0, y, W, y), fill=(12, 24, 46, int(255 * min(1, y / 34))))
-    p.img.paste(ov, (0, HH - 26), ov)
-    p.d = ImageDraw.Draw(p.img)
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
 
     title = "BESTPREISE PRO MONAT"
@@ -717,22 +754,15 @@ def _frame(cfg, now, title, subtitle, sky="nacht"):
     """Gemeinsamer Rahmen für Sonder-Stories: Nachthimmel mit Flugbogen, Titel, Prüfzeit, Untertitel, Logo."""
     p = Painter(cfg)
     t = p.t
-    img = Image.new("RGB", (W, H))
-    d = ImageDraw.Draw(img)
-    for y in range(H):
-        d.line((0, y, W, y), fill=lerp((12, 24, 46), (5, 10, 20), y / H))
+    img, planes_ = _story_body(sky if sky in BODY else "nacht")
     deco = Image.new("RGBA", (W, HH), (0, 0, 0, 0))
     _header_sky(deco, sky)
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
+    for x_, y_, a_, sc_ in planes_:
+        p.plane(x_, y_, int(44 * sc_), a_, (255, 255, 255))
     _route_marks(p)
-    ov = Image.new("RGBA", (W, 60), (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
-    for y in range(60):
-        od.line((0, y, W, y), fill=(12, 24, 46, int(255 * min(1, y / 34))))
-    p.img.paste(ov, (0, HH - 26), ov)
-    p.d = ImageDraw.Draw(p.img)
     ftt = p.fit(title, "extrabold", 112, W - 2 * PAD)
     p.d.text((W / 2 + 3, 215 + OFF), title, font=ftt, fill=(0, 0, 0), anchor="mm")
     p.d.text((W / 2, 212 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
@@ -766,7 +796,14 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
     tot = o.price + r_.price
     nights = (r_.day - o.day).days
     col = MEDALS[rank][1] if rank and rank <= 3 else (70, 90, 118)
-    p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, fill=(20, 36, 62), outline=col, width=4)
+    x0_, y0_, x1_, y1_ = int(PAD), int(top), int(W - PAD), int(top + h)
+    reg = p.img.crop((x0_, y0_, x1_, y1_)).filter(ImageFilter.GaussianBlur(14)).convert("RGBA")
+    reg.alpha_composite(Image.new("RGBA", reg.size, (10, 18, 40, 175)))
+    m_ = Image.new("L", reg.size, 0)
+    ImageDraw.Draw(m_).rounded_rectangle((0, 0, reg.width - 1, reg.height - 1), 22, fill=255)
+    p.img.paste(reg.convert("RGB"), (x0_, y0_), m_)
+    p.d = ImageDraw.Draw(p.img)
+    p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, outline=col, width=4)
     x0 = PAD + 26
     if label:
         p.d.rounded_rectangle((x0, top + 18, x0 + p.tw(label, p.font("extrabold", 30)) + 36, top + 66), 24, fill=t.accent)
