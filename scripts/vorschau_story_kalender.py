@@ -1112,8 +1112,44 @@ def week_ago_prices(today):
     return {(fa.route, fa.day): fa.price for fa in best.fares()}, best.fetched_at
 
 
-def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
-    """Story vor den Kalendern: Top 3 Hin- und Rückflüge, die seit gestern um mehr als min_pct % günstiger sind."""
+def _sale_background():
+    """Eigener Hintergrund für Preisstürze: dunkles Smaragd mit fallenden Pfeilen und Lichtschein."""
+    img = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        d.line((0, y, W, y), fill=lerp((10, 52, 42), (3, 16, 14), y / H))
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lay)
+    rnd = random.Random(7)
+    for _ in range(46):                                  # fallende Pfeile (Preise sinken)
+        x, y, sz = rnd.randint(0, W), rnd.randint(0, H), rnd.randint(18, 56)
+        a = rnd.randint(14, 34)
+        ld.rectangle((x - sz * .16, y - sz, x + sz * .16, y), fill=(120, 255, 180, a))
+        ld.polygon([(x - sz * .45, y), (x + sz * .45, y), (x, y + sz * .6)], fill=(120, 255, 180, a))
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse((90, 520, 990, 1400), fill=(40, 220, 130, 46))
+    lay.alpha_composite(glow.filter(ImageFilter.GaussianBlur(140)))
+    base = img.convert("RGBA")
+    base.alpha_composite(lay)
+    return base.convert("RGB")
+
+
+def _starburst(p, cx, cy, r, text, fill=(240, 62, 62)):
+    """Großer Rabatt-Stern mit Text (z. B. −29 %)."""
+    pts = []
+    for k in range(32):
+        ang = math.pi * k / 16 - math.pi / 2
+        rr = r if k % 2 == 0 else r * 0.84
+        pts.append((cx + rr * math.cos(ang), cy + rr * math.sin(ang)))
+    p.d.polygon([(x + 5, y + 6) for x, y in pts], fill=(0, 0, 0))
+    p.d.polygon(pts, fill=fill, outline=(255, 255, 255), width=5)
+    f = p.fit(text, "extrabold", int(r * 0.62), int(r * 1.5))
+    p.d.text((cx, cy + 2), text, font=f, fill=(255, 255, 255), anchor="mm")
+
+
+def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
+    """Story vor den Kalendern: Top 3 Hin- und Rückflüge (nächste Monate), die seit einer Woche um mehr als
+    min_pct % günstiger geworden sind. Nur Richtungen mit Treffern; keine Story (None), wenn nichts gefallen ist."""
     today = now.date()
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
 
@@ -1127,94 +1163,134 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=25.0):
                     out.append((pct, f, old))
         return sorted(out, key=lambda x: (-x[0], x[1].day))[:3]
 
-    sections = [(lab_, r_, ob, rt_, drops(r_)) for lab_, r_, ob, rt_ in
-                (("HINFLUG", cfg.route_out, True, "Frankfurt-Hahn → Nador"), ("RÜCKFLUG", cfg.route_ret, False, "Nador → Frankfurt-Hahn"))]
-    sections = [x for x in sections if x[4]]
+    sections = [(lab_, r_, ob, drops(r_)) for lab_, r_, ob in
+                (("HINFLUG", cfg.route_out, True), ("RÜCKFLUG", cfg.route_ret, False))]
+    sections = [x for x in sections if x[3]]
     if not sections:
-        return None                                       # nichts gefallen → heute keine Story
-    p = _frame(cfg, now, "PREISSTÜRZE",
-               ((f"Top 3, die seit einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}) über {min_pct:.0f} % günstiger wurden"
-                 if (today - prev_at.date()).days >= 7 else
-                 f"Top 3, die seit {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.%Y} über {min_pct:.0f} % günstiger wurden")
-                if prev_at else f"Top 3 mit über {min_pct:.0f} % Preissenkung"), sky="tuerkis")
-    n_items = sum(len(x[4]) for x in sections)
-    HEAD_H, GAP_C = 96, 18
-    avail = 1660 - 420
-    ch_ = int(min(400, (avail - len(sections) * HEAD_H - (n_items - 1) * GAP_C) / n_items))
-    k_ = ch_ / 400                                            # Schriftskala
-    total = len(sections) * HEAD_H + n_items * ch_ + (n_items - 1) * GAP_C
-    y = 420 + max(0, (avail - total) / 2)                     # Inhalt vertikal mittig
-    when = ((f"vor einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.})" if (today - prev_at.date()).days >= 7
-             else f"am {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}") if prev_at else "vorher")
-    for label, route, outb, rt, items in sections:
-        fT = p.font("extrabold", 44)
-        x0 = (W - (62 + 16 + p.tw(label, fT) + 18 + p.tw(rt, p.font("bold", 28)))) / 2
-        p.d.ellipse((x0, y + 10, x0 + 62, y + 72), fill=p.t.accent)
-        p.plane(x0 + 31, y + 41, 26, -18 if outb else 198, (255, 255, 255))
-        p.d.text((x0 + 78, y + 41), label, font=fT, fill=(255, 255, 255), anchor="lm")
-        p.d.text((x0 + 96 + p.tw(label, fT), y + 45), rt, font=p.font("bold", 28), fill=(190, 205, 225), anchor="lm")
-        y += HEAD_H
-        for k, (pct, f, old) in enumerate(items):
-            top0 = y
-            col = MEDALS[k + 1][1]
-            p.d.rounded_rectangle((PAD + 10, top0, W - PAD - 10, top0 + ch_), 30, fill=(20, 38, 64), outline=col, width=5)
-            if ch_ < 270:                                     # kompakt (viele Treffer): zweizeilig, Plakette rechts
-                draw_medal(p.img, PAD + 66, top0 + ch_ / 2 + 4, 30, k + 1, fpath)
-                p.d = ImageDraw.Draw(p.img)
-                xl = PAD + 124
-                p.d.text((xl, top0 + ch_ * 0.30), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y} · {f.departure} Uhr",
-                         font=p.font("extrabold", 32), fill=(255, 255, 255), anchor="lm")
-                fo, fn_ = p.font("extrabold", 36), p.font("extrabold", 58)
-                os_, ns_ = fmt_price(old), fmt_price(f.price)
-                yy = top0 + ch_ * 0.68
-                p.d.text((xl, yy), os_, font=fo, fill=(160, 170, 188), anchor="lm")
-                wo = p.tw(os_, fo)
-                p.d.line((xl - 3, yy + 1, xl + wo + 3, yy + 1), fill=UP, width=5)
-                p.d.text((xl + wo + 30, yy), "→", font=p.font("extrabold", 34), fill=(190, 205, 225), anchor="mm")
-                p.d.text((xl + wo + 58, yy), ns_, font=fn_, fill=(60, 220, 120), anchor="lm")
-                lab = f"▼ −{pct:.0f} %"
-                fl = p.font("extrabold", 34)
-                lw = p.tw(lab, fl) + 40
-                p.d.rounded_rectangle((W - PAD - 34 - lw, top0 + ch_ / 2 - 28, W - PAD - 34, top0 + ch_ / 2 + 28), 28, fill=(22, 130, 64))
-                p.d.text((W - PAD - 34 - lw / 2, top0 + ch_ / 2), lab, font=fl, fill=(255, 255, 255), anchor="mm")
-                y += ch_ + GAP_C
-                continue
-            cx = W / 2
-            if len(items) > 1:
-                draw_medal(p.img, PAD + 72, top0 + 70 * k_ + 6, int(34 * max(k_, .7)), k + 1, fpath)
-                p.d = ImageDraw.Draw(p.img)
-            # Datum
-            p.d.text((cx, top0 + 62 * k_), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y} · {f.departure} Uhr",
-                     font=p.font("extrabold", int(44 * max(k_, .65))), fill=(255, 255, 255), anchor="mm")
-            # vorher → jetzt
-            yy = top0 + 200 * k_
-            fo = p.font("extrabold", int(62 * max(k_, .6)))
-            fn_ = p.font("extrabold", int(112 * max(k_, .55)))
-            os_, ns_ = fmt_price(old), fmt_price(f.price)
-            wo, wn, wa = p.tw(os_, fo), p.tw(ns_, fn_), int(70 * max(k_, .6))
-            xs = cx - (wo + wa + wn) / 2
-            p.d.text((xs, yy), os_, font=fo, fill=(160, 170, 188), anchor="lm")
-            p.d.line((xs - 4, yy + 2, xs + wo + 4, yy + 2), fill=UP, width=max(4, int(7 * k_)))
-            p.d.text((xs + wo + wa / 2, yy), "→", font=p.font("extrabold", int(58 * max(k_, .6))), fill=(190, 205, 225), anchor="mm")
-            p.d.text((xs + wo + wa, yy), ns_, font=fn_, fill=(60, 220, 120), anchor="lm")
-            fl_ = p.font("bold", int(26 * max(k_, .7)))
-            p.d.text((xs + wo / 2, yy + 62 * max(k_, .6)), when, font=fl_, fill=(150, 162, 180), anchor="mm")
-            p.d.text((xs + wo + wa + wn / 2, yy + 74 * max(k_, .55)), "jetzt", font=fl_, fill=(120, 210, 150), anchor="mm")
-            # Prozent-Plakette
-            lab = f"▼ −{pct:.0f} %  ·  {fmt_price(old - f.price)} günstiger"
-            fl = p.font("extrabold", int(36 * max(k_, .65)))
-            lw = p.tw(lab, fl) + 50
-            by = top0 + ch_ - 62 * max(k_, .6)
-            p.d.rounded_rectangle((cx - lw / 2, by - 30 * max(k_, .65), cx + lw / 2, by + 30 * max(k_, .65)), 30, fill=(22, 130, 64))
-            p.d.text((cx, by), lab, font=fl, fill=(255, 255, 255), anchor="mm")
-            y += ch_ + GAP_C
-        y += 10
-    _footer(p, (f"Vergleich mit den Preisen von vor einer Woche ({WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y})"
-                if (today - prev_at.date()).days >= 7 else
-                f"Vergleich mit den Preisen vom {WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y}") + " · pro Person, Basic-Tarif"
-            if prev_at else "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com")
-    return p.img
+        return None
+    p = Painter(cfg)
+    t = p.t
+    p.img = _sale_background()
+    p.d = ImageDraw.Draw(p.img)
+    week = prev_at and (today - prev_at.date()).days >= 7
+    when_long = ((f"von vor einer Woche ({WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y})" if week
+                  else f"vom {WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y}") if prev_at else "")
+    when_short = ((f"vor einer Woche ({WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.})" if week
+                   else f"am {WOCHENTAGE[prev_at.weekday()][:2]}, {prev_at:%d.%m.}") if prev_at else "vorher")
 
+    def shadow(xy, txt, font, fill, anchor="mm", off=3):
+        p.d.text((xy[0] + off, xy[1] + off), txt, font=font, fill=(0, 0, 0), anchor=anchor)
+        p.d.text(xy, txt, font=font, fill=fill, anchor=anchor)
+
+    # Kopf
+    lab = f"ÜBER {min_pct:.0f} % GÜNSTIGER"
+    fl = p.font("extrabold", 30)
+    bw = p.tw(lab, fl) + 56
+    p.d.rounded_rectangle(((W - bw) / 2, 232, (W + bw) / 2, 288), 28, fill=(240, 62, 62))
+    p.d.text((W / 2, 260), lab, font=fl, fill=(255, 255, 255), anchor="mm")
+    shadow((W / 2, 362), "PREISSTÜRZE", p.font("extrabold", 120), (255, 255, 255))
+    chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
+    shadow((W / 2, 452), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (232, 240, 236), off=2)
+    sub = f"Verglichen mit den Preisen {when_long}"
+    shadow((W / 2, 494), sub, p.fit(sub, "bold", 27, W - 2 * PAD), (170, 220, 195), off=2)
+
+    def route_head(y, label, outb):
+        o, d_ = (("Frankfurt-Hahn", "DE"), ("Nador", "MA")) if outb else (("Nador", "MA"), ("Frankfurt-Hahn", "DE"))
+        fT, fC = p.font("extrabold", 42), p.font("bold", 30)
+        wl = 60 + 14 + p.tw(label, fT) + 24 + 46 + 10 + p.tw(o[0], fC) + 44 + 46 + 10 + p.tw(d_[0], fC)
+        x = (W - wl) / 2
+        p.d.ellipse((x, y - 30, x + 60, y + 30), fill=t.accent)
+        p.plane(x + 30, y, 25, -18 if outb else 198, (255, 255, 255))
+        x += 74
+        shadow((x, y), label, fT, (255, 255, 255), anchor="lm", off=2)
+        x += p.tw(label, fT) + 24
+        x += p.flag(o[1], x, y - 15, 30) + 10
+        p.d.text((x, y), o[0], font=fC, fill=(225, 238, 232), anchor="lm")
+        x += p.tw(o[0], fC) + 10
+        p.d.text((x + 12, y), "→", font=fC, fill=(170, 220, 195), anchor="mm")
+        x += 34
+        x += p.flag(d_[1], x, y - 15, 30) + 10
+        p.d.text((x, y), d_[0], font=fC, fill=(225, 238, 232), anchor="lm")
+
+    def glass(box, outline, r=34):
+        x0, y0, x1, y1 = map(int, box)
+        reg = p.img.crop((x0, y0, x1, y1)).filter(ImageFilter.GaussianBlur(20)).convert("RGBA")
+        reg.alpha_composite(Image.new("RGBA", reg.size, (6, 24, 20, 190)))
+        m = Image.new("L", reg.size, 0)
+        ImageDraw.Draw(m).rounded_rectangle((0, 0, reg.width - 1, reg.height - 1), r, fill=255)
+        p.img.paste(reg.convert("RGB"), (x0, y0), m)
+        p.d = ImageDraw.Draw(p.img)
+        p.d.rounded_rectangle(box, r, outline=outline, width=5)
+
+    n_items = sum(len(x[3]) for x in sections)
+    top, bottom = 550, 1680
+    if n_items == 1:                                      # ein Treffer: groß wie die Bestpreis-Story
+        label, route, outb, items = sections[0]
+        pct, f, old = items[0]
+        route_head(612, label, outb)
+        cx0, cy0, cx1, cy1 = 48, 690, W - 48, 1560
+        glass((cx0, cy0, cx1, cy1), GOLD)
+        p.d.text((W / 2, cy0 + 90), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y}", font=p.font("extrabold", 62),
+                 fill=(255, 255, 255), anchor="mm")
+        p.d.text((W / 2, cy0 + 160), f"Abflug {f.departure} Uhr · einfache Strecke, pro Person", font=p.font("bold", 30),
+                 fill=(200, 225, 212), anchor="mm")
+        fo = p.font("extrabold", 78)
+        os_ = fmt_price(old)
+        wo = p.tw(os_, fo)
+        p.d.text((W / 2, cy0 + 270), os_, font=fo, fill=(170, 182, 196), anchor="mm")
+        p.d.line((W / 2 - wo / 2 - 8, cy0 + 274, W / 2 + wo / 2 + 8, cy0 + 262), fill=(240, 62, 62), width=9)
+        p.d.text((W / 2, cy0 + 330), f"Preis {when_short}", font=p.font("bold", 28), fill=(160, 178, 190), anchor="mm")
+        price = fmt_price(f.price)
+        fp = p.font("extrabold", 200)
+        gl = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(gl).text((W / 2, cy0 + 500), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
+        base = p.img.convert("RGBA")
+        base.alpha_composite(gl.filter(ImageFilter.GaussianBlur(18)))
+        p.img = base.convert("RGB")
+        p.d = ImageDraw.Draw(p.img)
+        p.d.text((W / 2, cy0 + 500), price, font=fp, fill=(60, 220, 120), anchor="mm")
+        p.d.text((W / 2, cy0 + 630), "jetzt", font=p.font("extrabold", 34), fill=(120, 230, 160), anchor="mm")
+        sv = f"Du sparst {fmt_price(old - f.price)}"
+        fs = p.font("extrabold", 40)
+        sw = p.tw(sv, fs) + 60
+        p.d.rounded_rectangle(((W - sw) / 2, cy0 + 690, (W + sw) / 2, cy0 + 756), 33, fill=(22, 130, 64))
+        p.d.text((W / 2, cy0 + 723), sv, font=fs, fill=(255, 255, 255), anchor="mm")
+        _starburst(p, cx1 - 120, cy0 + 300, 120, f"−{pct:.0f} %")
+    else:
+        HEAD_H, GAP_C = 92, 16
+        ch_ = int(min(250, (bottom - top - len(sections) * HEAD_H - (n_items - 1) * GAP_C) / n_items))
+        total = len(sections) * HEAD_H + n_items * ch_ + (n_items - 1) * GAP_C
+        y = top + max(0, (bottom - top - total) / 2)
+        for label, route, outb, items in sections:
+            route_head(y + 44, label, outb)
+            y += HEAD_H
+            for k, (pct, f, old) in enumerate(items):
+                col = MEDALS[k + 1][1]
+                glass((PAD + 6, y, W - PAD - 6, y + ch_), col, 26)
+                draw_medal(p.img, PAD + 64, y + ch_ / 2 + 4, 30, k + 1, fpath)
+                p.d = ImageDraw.Draw(p.img)
+                xl = PAD + 120
+                p.d.text((xl, y + ch_ * 0.28), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y} · {f.departure} Uhr",
+                         font=p.font("extrabold", 32), fill=(255, 255, 255), anchor="lm")
+                fo, fn_ = p.font("extrabold", 38), p.font("extrabold", 64)
+                os_, ns_ = fmt_price(old), fmt_price(f.price)
+                yy = y + ch_ * 0.68
+                p.d.text((xl, yy), os_, font=fo, fill=(170, 182, 196), anchor="lm")
+                wo = p.tw(os_, fo)
+                p.d.line((xl - 4, yy + 3, xl + wo + 4, yy - 3), fill=(240, 62, 62), width=6)
+                p.d.text((xl + wo + 30, yy), "→", font=p.font("extrabold", 36), fill=(170, 220, 195), anchor="mm")
+                p.d.text((xl + wo + 58, yy), ns_, font=fn_, fill=(60, 220, 120), anchor="lm")
+                r_ = min(ch_ / 2 - 8, 92)
+                _starburst(p, W - PAD - 30 - r_, y + ch_ / 2, r_, f"−{pct:.0f} %")
+                y += ch_ + GAP_C
+            y += 8
+    msg = "Die Flugpreise können sich im Laufe des Tages jederzeit ändern."
+    shadow((W / 2, 1716), msg, p.fit(msg, "bold", 30, W - 2 * PAD), (255, 255, 255), off=2)
+    ex = "Preise pro Person (Basic-Tarif) · Buchung nur auf ryanair.com"
+    p.d.text((W / 2, 1752), ex, font=p.font("bold", 21), fill=(190, 220, 205), anchor="mm")
+    p.d.text((W / 2, H - 24), "Unabhängige Infoseite · keine Verbindung zu Ryanair", font=p.font("bold", 20),
+             fill=(220, 236, 228), anchor="mm")
+    return p.img
 
 def main_alle(testdaten=False):
     cfg = load_config()
