@@ -1007,7 +1007,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     ph = cfg["photos"]
     pd_ = PROJ / "assets" / "photos"
     # Sonnenuntergangs-Himmel oben, Skylines (Abflugort links, Ziel rechts) unten, Flugzeuge mit Kondensstreifen
-    HOR = 760                                                 # Horizont: hier beginnen die Fotos
+    HOR = 660                                                 # Horizont: hier beginnen die Fotos
     bg = Image.new("RGBA", (W, H), (8, 14, 26, 255))
     sky = Image.new("RGBA", (W, HOR + 200), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sky)
@@ -1051,7 +1051,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
         grad = Image.new("L", img_.size, 0)
         gd_ = ImageDraw.Draw(grad)
         for yy in range(img_.height):
-            gd_.line((0, yy, img_.width, yy), fill=int(255 * min(1, max(0, (yy - 120) / 520))))
+            gd_.line((0, yy, img_.width, yy), fill=int(255 * min(1, max(0, (yy - 160) / 380))))
         solid = Image.new("L", img_.size, 255)
         lm = Image.composite(solid, lum, grad)
         m = ImageChops.multiply(m, lm)
@@ -1060,7 +1060,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
     for yy in range(HOR - 100, H):
-        od.line((0, yy, W, yy), fill=(6, 10, 24, int(min(190, max(0, (yy - HOR) * 0.22)))))
+        od.line((0, yy, W, yy), fill=(6, 10, 24, int(min(120, max(0, (yy - HOR - 200) * 0.12)))))
     bg.alpha_composite(ov)
     planes_ = [(170, 600, -16, 1.0), (930, 300, 18, 0.8), (880, 660, -10, 0.6), (120, 1780, 10, 0.9), (960, 1640, -14, 0.8)]
     pl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -1116,8 +1116,8 @@ def render_bestangebot(cfg, snap, now, rueck=False):
 
     # Glas-Karte mit dem Angebot
     cx0, cy0, cx1, cy1 = 48, 830, W - 48, 1520
-    reg = p.img.crop((cx0, cy0, cx1, cy1)).filter(ImageFilter.GaussianBlur(24)).convert("RGBA")
-    reg.alpha_composite(Image.new("RGBA", reg.size, (10, 20, 38, 175)))
+    reg = p.img.crop((cx0, cy0, cx1, cy1)).filter(ImageFilter.GaussianBlur(6)).convert("RGBA")
+    reg.alpha_composite(Image.new("RGBA", reg.size, (8, 14, 30, 120)))
     m = Image.new("L", reg.size, 0)
     ImageDraw.Draw(m).rounded_rectangle((0, 0, reg.width - 1, reg.height - 1), 36, fill=255)
     p.img.paste(reg.convert("RGB"), (cx0, cy0), m)
@@ -1125,11 +1125,10 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     p.d.rounded_rectangle((cx0, cy0, cx1, cy1), 36, outline=GOLD, width=5)
     p.d.ellipse((W / 2 - 40, cy0 + 34, W / 2 + 40, cy0 + 114), fill=t.accent)
     p.plane(W / 2, cy0 + 74, 34, -18, (255, 255, 255))
+    p.d.text((W / 2 + 2, cy0 + 152), "RÜCKFLUG · EINFACHE STRECKE, PRO PERSON" if rueck else "HINFLUG · EINFACHE STRECKE, PRO PERSON", font=p.font("extrabold", 30), fill=(0, 0, 0), anchor="mm")
     p.d.text((W / 2, cy0 + 150), "RÜCKFLUG · EINFACHE STRECKE, PRO PERSON" if rueck else "HINFLUG · EINFACHE STRECKE, PRO PERSON", font=p.font("extrabold", 30), fill=(200, 214, 232), anchor="mm")
-    p.d.text((W / 2, cy0 + 222), f"{WOCHENTAGE[best.day.weekday()]}, {best.day:%d.%m.%Y}", font=p.font("extrabold", 58),
-             fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, cy0 + 290), f"Abflug {best.departure} Uhr · {src_city} → {dst_city}", font=p.font("bold", 32),
-             fill=(214, 226, 240), anchor="mm")
+    shadow((W / 2, cy0 + 222), f"{WOCHENTAGE[best.day.weekday()]}, {best.day:%d.%m.%Y}", p.font("extrabold", 58), (255, 255, 255))
+    shadow((W / 2, cy0 + 290), f"Abflug {best.departure} Uhr · {src_city} → {dst_city}", p.font("bold", 32), (225, 234, 245), off=2)
     price = fmt_price(best.price)
     fp = p.font("extrabold", 210)
     glow = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
@@ -1139,8 +1138,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     p.img = base.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
     p.d.text((W / 2, cy0 + 470), price, font=fp, fill=(60, 220, 120), anchor="mm")
-    p.d.text((W / 2, cy0 + 620), "Basic-Tarif · nur 1 kleine Tasche (40×30×20 cm)", font=p.font("bold", 28),
-             fill=(200, 214, 232), anchor="mm")
+    shadow((W / 2, cy0 + 620), "Basic-Tarif · nur 1 kleine Tasche (40×30×20 cm)", p.font("bold", 28), (220, 230, 242), off=2)
 
     chk = f"Preis bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
     shadow((W / 2, 1580), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (255, 255, 255), off=2)
