@@ -1006,25 +1006,78 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     t = p.t
     ph = cfg["photos"]
     pd_ = PROJ / "assets" / "photos"
-    fra = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H, 0.55, 0.4).convert("RGBA")
-    ndr = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H, 0.62, 0.55).convert("RGBA")
-    left, right = (ndr, fra) if rueck else (fra, ndr)
+    # Sonnenuntergangs-Himmel oben, Skylines (Abflugort links, Ziel rechts) unten, Flugzeuge mit Kondensstreifen
+    HOR = 760                                                 # Horizont: hier beginnen die Fotos
     bg = Image.new("RGBA", (W, H), (8, 14, 26, 255))
-    bg.alpha_composite(left, (0, 0))
-    mask = Image.new("L", right.size, 255)
-    md = ImageDraw.Draw(mask)
-    for xx in range(160):                                   # weicher Übergang in der Mitte
-        md.line((xx, 0, xx, H), fill=int(255 * xx / 160))
-    right.putalpha(mask)
-    bg.alpha_composite(right, (W - right.width, 0))
+    sky = Image.new("RGBA", (W, HOR + 200), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sky)
+    stops = [(0, (14, 22, 70)), (0.45, (92, 44, 130)), (0.78, (220, 92, 110)), (1.0, (255, 170, 90))]
+    for y in range(sky.height):
+        u = y / sky.height
+        for (u0, c0), (u1, c1) in zip(stops, stops[1:]):
+            if u0 <= u <= u1:
+                sd.line((0, y, W, y), fill=(*lerp(c0, c1, (u - u0) / (u1 - u0)), 255))
+                break
+    glow = Image.new("RGBA", sky.size, (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse((W / 2 - 360, HOR - 160, W / 2 + 360, HOR + 260), fill=(255, 210, 120, 150))
+    sky.alpha_composite(glow.filter(ImageFilter.GaussianBlur(70)))
+    rnd = random.Random(12)
+    sd = ImageDraw.Draw(sky)
+    for _ in range(70):
+        x, y = rnd.randint(0, W), rnd.randint(0, 340)
+        sd.ellipse((x - 1.5, y - 1.5, x + 1.5, y + 1.5), fill=(255, 255, 255, rnd.randint(90, 200)))
+    bg.alpha_composite(sky, (0, 0))
+    fra = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H - HOR + 300, 0.55, 0.30).convert("RGBA")
+    ndr = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H - HOR + 300, 0.62, 0.42).convert("RGBA")
+    left, right = (ndr, fra) if rueck else (fra, ndr)
+    for img_, x_, side in ((left, 0, "l"), (right, W - right.width, "r")):
+        m = Image.new("L", img_.size, 255)
+        md = ImageDraw.Draw(m)
+        for yy in range(300):                                 # oben weich in den Himmel
+            md.line((0, yy, img_.width, yy), fill=int(255 * (yy / 300) ** 1.6))
+        if side == "r":
+            for xx in range(160):
+                for yy in range(0, img_.height, 1):
+                    pass
+            mm = Image.new("L", img_.size, 255)
+            mmd = ImageDraw.Draw(mm)
+            for xx in range(160):
+                mmd.line((xx, 0, xx, img_.height), fill=int(255 * xx / 160))
+            from PIL import ImageChops
+            m = ImageChops.multiply(m, mm)
+        # dunkler Foto-Himmel durchsichtig, Lichter der Stadt bleiben (Helligkeitsmaske, oben stärker)
+        from PIL import ImageChops
+        lum = img_.convert("L").point(lambda v_: min(255, int(v_ * 3.2)))
+        grad = Image.new("L", img_.size, 0)
+        gd_ = ImageDraw.Draw(grad)
+        for yy in range(img_.height):
+            gd_.line((0, yy, img_.width, yy), fill=int(255 * min(1, max(0, (yy - 120) / 520))))
+        solid = Image.new("L", img_.size, 255)
+        lm = Image.composite(solid, lum, grad)
+        m = ImageChops.multiply(m, lm)
+        img_.putalpha(m)
+        bg.alpha_composite(img_, (x_, HOR - 300))
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
-    for yy in range(H):
-        a_ = 120 - 75 * min(1, yy / 520) if yy < 760 else min(210, 45 + (yy - 760) * 0.25)
-        od.line((0, yy, W, yy), fill=(6, 12, 24, int(a_)))
+    for yy in range(HOR - 100, H):
+        od.line((0, yy, W, yy), fill=(6, 10, 24, int(min(190, max(0, (yy - HOR) * 0.22)))))
     bg.alpha_composite(ov)
+    planes_ = [(170, 600, -16, 1.0), (930, 300, 18, 0.8), (880, 660, -10, 0.6), (120, 1780, 10, 0.9), (960, 1640, -14, 0.8)]
+    pl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pld = ImageDraw.Draw(pl)
+    for x, y, ang, sc in planes_:
+        a_ = math.radians(ang)
+        L = 380 * sc
+        for k in range(30):
+            t0, t1 = k / 30, (k + 1) / 30
+            pld.line((x - L * (1 - t0) * math.cos(a_), y - L * (1 - t0) * math.sin(a_),
+                      x - L * (1 - t1) * math.cos(a_), y - L * (1 - t1) * math.sin(a_)),
+                     fill=(255, 255, 255, int(14 + 120 * t1)), width=max(2, int(7 * sc * t1)))
+    bg.alpha_composite(pl)
     p.img = bg.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
+    for x, y, ang, sc in planes_:
+        p.plane(x, y, int(46 * sc), ang, (255, 255, 255))
 
     def shadow(xy, txt, font, fill, anchor="mm", off=3):
         p.d.text((xy[0] + off, xy[1] + off), txt, font=font, fill=(0, 0, 0), anchor=anchor)
@@ -1032,15 +1085,24 @@ def render_bestangebot(cfg, snap, now, rueck=False):
 
     # Kopf
     lab = f"BESTPREIS · NÄCHSTE {N_MONATE} MONATE"
-    fl = p.font("extrabold", 30)
-    bw = p.tw(lab, fl) + 56
-    p.d.rounded_rectangle(((W - bw) / 2, 232, (W + bw) / 2, 288), 28, fill=GOLD)
-    p.d.text((W / 2, 260), lab, font=fl, fill=(40, 28, 6), anchor="mm")
-    l1 = "DER GÜNSTIGSTE"
-    l2 = "RÜCKFLUG NACH HAHN" if rueck else "FLUG NACH NADOR"
-    ft2 = p.fit(l2, "extrabold", 92, W - 2 * PAD - 20)
-    shadow((W / 2, 372), l1, ft2, (255, 255, 255))
-    shadow((W / 2, 470), l2, ft2, (255, 255, 255))
+    fl = p.font("extrabold", 46)
+    bw = p.tw(lab, fl) + 150
+    x0, y0, x1, y1 = (W - bw) / 2, 196, (W + bw) / 2, 284
+    p.d.rounded_rectangle((x0 + 6, y0 + 8, x1 + 6, y1 + 8), 22, fill=(0, 0, 0))
+    p.d.rounded_rectangle((x0, y0, x1, y1), 22, fill=GOLD, outline=(255, 255, 255), width=4)
+    for cxn in (x0, x1):
+        p.d.ellipse((cxn - 16, (y0 + y1) / 2 - 16, cxn + 16, (y0 + y1) / 2 + 16), fill=(18, 24, 72))
+    for yy in range(int(y0) + 12, int(y1) - 8, 14):
+        p.d.line((x0 + 96, yy, x0 + 96, yy + 7), fill=(150, 110, 20), width=3)
+    p.plane(x0 + 52, (y0 + y1) / 2, 30, -20, (60, 40, 6))
+    p.d.text((x0 + 120, (y0 + y1) / 2 + 2), lab, font=fl, fill=(40, 28, 6), anchor="lm")
+    if rueck:
+        lines_ = ["DER GÜNSTIGSTE RÜCKFLUG", "NACH FRANKFURT-HAHN"]
+    else:
+        lines_ = ["DER GÜNSTIGSTE", "FLUG NACH NADOR"]
+    ft2 = min((p.fit(l_, "extrabold", 92, W - 2 * PAD - 20) for l_ in lines_), key=lambda f_: f_.size)
+    shadow((W / 2, 372), lines_[0], ft2, (255, 255, 255))
+    shadow((W / 2, 470), lines_[1], ft2, (255, 255, 255))
 
     # Flugbogen mit Städten
     ya = 700
