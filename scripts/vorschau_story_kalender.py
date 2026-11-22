@@ -811,7 +811,7 @@ def draw_airliner(img, cx, cy, length, angle_deg=0.0):
     return base.convert("RGB")
 
 
-ROUTE_STYLE = "einfach"          # einfach | kreis | doppelpfeil | kreuzen
+ROUTE_STYLE = "doppelpfeil"      # einfach | kreis | doppelpfeil | kreuzen
 
 
 def _route_marks(p, style=None):
@@ -893,10 +893,6 @@ def _route_marks(p, style=None):
     if style in ("einfach",):
         for (x, c) in ((a0, t.accent), (a1, t.green)):
             p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c, outline=(255, 255, 255), width=3)
-    if style == "doppelpfeil":                              # ⇄-Symbol über dem Flugzeug
-        cx_, cy_ = curve(58, 1)(0.5)
-        p.d.rounded_rectangle((cx_ - 70, cy_ - 104, cx_ + 70, cy_ - 62), 20, fill=(255, 255, 255))
-        p.d.text((cx_, cy_ - 83), "Hin & Rück", font=p.font("extrabold", 22), fill=(30, 40, 70), anchor="mm")
     for (x, y_), ang, ln in planes:
         flip = ang > 90 or ang < -90
         p.img = draw_airliner_side(p.img, x, y_ - 4, ln, (ang - 180) if flip else ang, flip=flip)
