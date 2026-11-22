@@ -681,9 +681,19 @@ def draw_airliner_side(img, cx, cy, length, angle_deg=-6.0, flip=False):
     # --- Rumpf: senkrechter Verlauf (oben hell, unten Schatten), runde Nase, spitzes Heck
     body = Image.new("L", lay.size, 0)
     bd = ImageDraw.Draw(body)
-    bd.rounded_rectangle((X(0.10), oy - fh / 2, X(0.96), oy + fh / 2), radius=int(fh / 2), fill=255)
-    bd.ellipse((X(0.90), oy - fh / 2, X(1.0), oy + fh * 0.48), fill=255)
-    bd.polygon([(X(0.12), oy - fh / 2), (X(0.0), oy - fh * 0.38), (X(0.01), oy - fh * 0.18), (X(0.14), oy + fh / 2)], fill=255)
+    def bez(p0, p1, p2, p3, n=24):
+        return [((1 - t) ** 3 * p0[0] + 3 * (1 - t) ** 2 * t * p1[0] + 3 * (1 - t) * t ** 2 * p2[0] + t ** 3 * p3[0],
+                 (1 - t) ** 3 * p0[1] + 3 * (1 - t) ** 2 * t * p1[1] + 3 * (1 - t) * t ** 2 * p2[1] + t ** 3 * p3[1])
+                for t in (i / n for i in range(n + 1))]
+    top_y, bot_y = oy - fh / 2, oy + fh / 2
+    tip = (X(1.0), oy + fh * 0.12)                             # Nasenspitze leicht unter der Mitte (typisch Airliner)
+    outline = ([(X(0.14), top_y), (X(0.84), top_y)]
+               + bez((X(0.84), top_y), (X(0.93), top_y), (X(0.985), oy - fh * 0.22), tip)          # Oberseite → Spitze
+               + bez(tip, (X(0.995), oy + fh * 0.38), (X(0.95), bot_y), (X(0.86), bot_y))          # Spitze → Unterseite
+               + [(X(0.16), bot_y)]
+               + bez((X(0.16), bot_y), (X(0.08), bot_y), (X(0.03), oy - fh * 0.05), (X(0.0), oy - fh * 0.30))  # Heck unten
+               + [(X(0.01), oy - fh * 0.42), (X(0.14), top_y)])
+    bd.polygon(outline, fill=255)
     shade = Image.new("RGBA", lay.size)
     sd = ImageDraw.Draw(shade)
     for yy in range(Hb):
@@ -698,7 +708,7 @@ def draw_airliner_side(img, cx, cy, length, angle_deg=-6.0, flip=False):
     lay.paste(shade, (0, 0), body)
     d = ImageDraw.Draw(lay)
     # Zierstreifen (Seitenfarbe), Fenster, Türen, Cockpit
-    d.line([(X(0.16), oy + fh * 0.12), (X(0.90), oy + fh * 0.12)], fill=(40, 150, 220, 255), width=int(fh * 0.07))
+    d.line([(X(0.16), oy + fh * 0.12), (X(0.88), oy + fh * 0.12)], fill=(40, 150, 220, 255), width=int(fh * 0.07))
     for k in range(34):
         u = 0.22 + k * 0.019
         if 0.47 < u < 0.51:
@@ -706,11 +716,16 @@ def draw_airliner_side(img, cx, cy, length, angle_deg=-6.0, flip=False):
         x = X(u)
         d.rounded_rectangle((x - fh * 0.045, oy - fh * 0.20, x + fh * 0.045, oy - fh * 0.05), radius=int(fh * 0.04),
                             fill=(46, 62, 88, 255))
-    for u in (0.20, 0.86):
+    for u in (0.20, 0.84):
         d.rounded_rectangle((X(u) - fh * 0.08, oy - fh * 0.33, X(u) + fh * 0.08, oy + fh * 0.18), radius=int(fh * 0.05),
                             outline=(170, 182, 198, 255), width=int(S * 1.2))
-    d.polygon([(X(0.925), oy - fh * 0.24), (X(0.965), oy - fh * 0.22), (X(0.985), oy - fh * 0.08), (X(0.93), oy - fh * 0.08)],
-              fill=(36, 52, 80, 255))
+    # Cockpitfenster: ein dunkles, schräges Scheibenband entlang der Nasenrundung mit feinen Rahmen
+    wpoly = [(X(0.893), oy - fh * 0.33), (X(0.935), oy - fh * 0.30), (X(0.968), oy - fh * 0.19),
+             (X(0.958), oy - fh * 0.09), (X(0.900), oy - fh * 0.17)]
+    d.polygon(wpoly, fill=(30, 42, 66, 255))
+    for u0 in (0.913, 0.935, 0.952):
+        d.line([(X(u0), oy - fh * 0.33), (X(u0 - 0.004), oy - fh * 0.14)], fill=(214, 222, 233, 255), width=int(S * 1.6))
+    d.line([(X(0.898), oy - fh * 0.30), (X(0.940), oy - fh * 0.27)], fill=(140, 170, 210, 200), width=int(S * 1.2))  # Spiegelung
     # Höhenleitwerk
     d.polygon([(X(0.03), oy - fh * 0.15), (X(-0.03), oy - fh * 0.05), (X(0.10), oy + fh * 0.02), (X(0.16), oy - fh * 0.02)],
               fill=(196, 206, 220, 255))
@@ -731,7 +746,7 @@ def draw_airliner_side(img, cx, cy, length, angle_deg=-6.0, flip=False):
     d.ellipse((X(0.605), ey - fh * 0.22, X(0.635), ey + fh * 0.22), fill=(40, 48, 62, 255))
     d.ellipse((X(0.612), ey - fh * 0.12, X(0.628), ey + fh * 0.12), fill=(170, 180, 196, 255))
     # Glanzlicht oben
-    d.line([(X(0.18), oy - fh * 0.40), (X(0.88), oy - fh * 0.40)], fill=(255, 255, 255, 230), width=int(fh * 0.05))
+    d.line([(X(0.18), oy - fh * 0.40), (X(0.84), oy - fh * 0.40)], fill=(255, 255, 255, 230), width=int(fh * 0.05))
     if flip:
         lay = lay.transpose(Image.FLIP_LEFT_RIGHT)
     lay = lay.rotate(-angle_deg if not flip else angle_deg, resample=Image.BICUBIC, expand=True)
