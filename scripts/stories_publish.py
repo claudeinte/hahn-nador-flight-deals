@@ -141,6 +141,9 @@ def main():
     ap.add_argument("--anzahl", type=int, default=14, help="erwartete Anzahl Stories")
     a = ap.parse_args()
     files = sorted(f for f in Path(a.ordner).glob("[0-9][0-9]_*.jpg") if not f.name.startswith("00_"))
+    anz_file = Path(a.png_ordner or a.ordner) / "anzahl.txt"
+    if anz_file.exists():
+        a.anzahl = int(anz_file.read_text().strip())
     if len(files) != a.anzahl:
         sys.exit(f"Erwartet {a.anzahl} Story-Bilder, gefunden {len(files)} – nichts veröffentlicht.")
     print("Stories:", ", ".join(f.name for f in files))
@@ -160,6 +163,9 @@ def main():
             print(f"  ❌ {name}: {e}")
         save_state(st)
     print(f"Instagram {len(day.get('instagram', []))}/{a.anzahl} · Facebook {len(day.get('facebook', []))}/{a.anzahl}")
+    if not fehler:
+        day["komplett"] = True
+        save_state(st)
     if fehler:
         sys.exit("Fehler: " + " | ".join(fehler))
 

@@ -1683,14 +1683,17 @@ def main_alle(testdaten=False):
     out = PROJ / "output" / "stories" / now.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
     pv_w, pat_w = week_ago_prices(now.date())
-    seq = [("01_guenstigster_hinflug", render_bestangebot(cfg, snap, now)),
-           ("02_guenstigster_rueckflug", render_bestangebot(cfg, snap, now, rueck=True)),
-           ("03_top5_kombinationen", render_kombis(cfg, snap, now)),
-           ("04_nach_dauer", render_dauer(cfg, snap, now)),
-           ("05_bestpreise_pro_monat", render_summary(cfg, snap, months, now))]
+    # Reihenfolge (vom Nutzer freigegeben 22.11.2026): Bestpreis Hin, Bestpreis Rück, Preisstürze (nur wenn vorhanden),
+    # Top 5 Kombinationen, Günstig nach Dauer, Bestpreise pro Monat, danach die Monatskalender
+    seq = [("guenstigster_hinflug", render_bestangebot(cfg, snap, now)),
+           ("guenstigster_rueckflug", render_bestangebot(cfg, snap, now, rueck=True))]
     ps = render_preisstuerze(cfg, snap, pv_w, pat_w, now)
-    if ps is not None:                                        # nur wenn es Preisstürze gibt
-        seq.append(("06_preisstuerze", ps))
+    if ps is not None:
+        seq.append(("preisstuerze", ps))
+    seq += [("top5_kombinationen", render_kombis(cfg, snap, now)),
+            ("nach_dauer", render_dauer(cfg, snap, now)),
+            ("bestpreise_pro_monat", render_summary(cfg, snap, months, now))]
+    seq = [(f"{k + 1:02d}_{n}", im) for k, (n, im) in enumerate(seq)]
     for y_, m_ in months:
         seq.append((f"{len(seq) + 1:02d}_kalender_{y_}-{m_:02d}", render_month(cfg, snap, prev, y_, m_, now, testdaten)))
     imgs = []

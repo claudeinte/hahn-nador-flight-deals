@@ -25,7 +25,7 @@ jobs:
     env:
       PYTHONPATH: src
       TZ: Europe/Berlin
-      ANZAHL: "14"          # Übersicht + Top 5 Kombis + nach Dauer + 11 Monatskalender
+      ANZAHL: "0"           # Anzahl kommt aus output/stories/<datum>/anzahl.txt (16 oder 17)
     steps:
       - uses: actions/checkout@v4
 
@@ -47,14 +47,13 @@ jobs:
           d = sys.argv[1]; p = pathlib.Path("data/stories_veroeffentlicht.json")
           st = json.loads(p.read_text()) if p.exists() else {}
           day = st.get(d, {})
-          n = int(os.environ["ANZAHL"])
-          fertig = len(day.get("instagram", [])) >= n and len(day.get("facebook", [])) >= n
+          fertig = bool(day.get("komplett"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"fertig={'ja' if fertig else 'nein'}\n")
           print("Heute schon komplett veröffentlicht:" , fertig)
           EOF
 
-      - name: Preise abfragen und 14 Story-Bilder erstellen
+      - name: Preise abfragen und Story-Bilder erstellen (16–17)
         if: steps.tag.outputs.fertig == 'nein'
         run: python scripts/vorschau_story_kalender.py --alle
 
@@ -68,7 +67,7 @@ jobs:
           from PIL import Image
           d = sys.argv[1]
           src = sorted(f for f in pathlib.Path(f"output/stories/{d}").glob("[0-9][0-9]_*.png") if not f.name.startswith("00_"))
-          n = int(__import__("os").environ["ANZAHL"])
+          n = int(pathlib.Path(f"output/stories/{d}/anzahl.txt").read_text().strip())
           assert len(src) == n, f"{len(src)} Bilder statt {n}"
           for f in src:
               # Qualität 95 und ohne Farb-Unterabtastung (4:4:4) → Schrift bleibt scharf, auch farbige Preise
