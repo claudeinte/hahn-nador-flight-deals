@@ -651,28 +651,38 @@ def _story_body(kind):
 
 
 def _route_marks(p):
-    """Start/Ziel am Flugbogen: links 🇩🇪 Frankfurt-Hahn, rechts Nador 🇲🇦 (groß, gut lesbar in Stories)."""
+    """Kopfzeile der Sonder-Stories: links 🇩🇪 Frankfurt-Hahn (am linken Rand), rechts Nador 🇲🇦 (am rechten Rand),
+    dazwischen der gestrichelte Flugbogen mit großem Flugzeug."""
     t = p.t
-    for (x, y), col in (((ARC_X0, ARC_Y), t.accent), ((ARC_X1, ARC_Y), t.green)):
-        p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=col, outline=(255, 255, 255), width=3)
-    f = p.font("extrabold", 38)
-    lab = "Frankfurt-Hahn"
-    tw_ = p.tw(lab, f)
-    xr = ARC_X0 - 22
+    f = p.font("extrabold", 40)
+    y = ARC_Y
+    # links
+    xf = 24
+    xf += p.flag("DE", xf, y - 17, 34) + 12
     for dx in (3, 0):
-        p.d.text((xr - tw_ + dx, ARC_Y + dx), lab, font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
-    p.flag("DE", xr - tw_ - 12 - 50, ARC_Y - 16, 32)
-    xl = ARC_X1 + 22
+        p.d.text((xf + dx, y + dx), "Frankfurt-Hahn", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
+    a0 = xf + p.tw("Frankfurt-Hahn", f) + 26
+    # rechts (bündig am rechten Rand)
+    fw = 51                                                   # Flaggenbreite bei Höhe 34
+    xr_flag = W - 24 - fw
+    p.flag("MA", xr_flag, y - 17, 34)
+    xn = xr_flag - 12 - p.tw("Nador", f)
     for dx in (3, 0):
-        p.d.text((xl + dx, ARC_Y + dx), "Nador", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
-    p.flag("MA", xl + p.tw("Nador", f) + 12, ARC_Y - 16, 32)
-    t_ = 0.55
-    px = ARC_X0 + (ARC_X1 - ARC_X0) * t_
-    py = ARC_Y - ARC_AMP * math.sin(math.pi * t_)
-    ang = math.degrees(math.atan2(-ARC_AMP * math.pi * math.cos(math.pi * t_), ARC_X1 - ARC_X0))
+        p.d.text((xn + dx, y + dx), "Nador", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
+    a1 = xn - 26
+    amp = 58
+    pts = [(a0 + (a1 - a0) * i / 24, y - amp * math.sin(math.pi * i / 24)) for i in range(25)]
+    for i in range(0, 24, 2):
+        p.d.line((pts[i][0] + 2, pts[i][1] + 2, pts[i + 1][0] + 2, pts[i + 1][1] + 2), fill=(0, 0, 0), width=6)
+        p.d.line((pts[i], pts[i + 1]), fill=(255, 255, 255), width=6)
+    for (x, c) in ((a0, t.accent), (a1, t.green)):
+        p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c, outline=(255, 255, 255), width=3)
+    t_ = 0.5
+    px = a0 + (a1 - a0) * t_
+    py = y - amp
     p.d.ellipse((px - 44, py - 44, px + 44, py + 44), fill=(255, 255, 255))
     p.d.ellipse((px - 39, py - 39, px + 39, py + 39), fill=t.accent)
-    p.plane(px, py, 42, ang, (255, 255, 255))
+    p.plane(px, py, 42, 0, (255, 255, 255))
 
 
 def render_summary(cfg, snap, months, now):
@@ -682,7 +692,7 @@ def render_summary(cfg, snap, months, now):
     t = p.t
     img, planes_ = _story_body("tag")
     deco = Image.new("RGBA", (W, HH), (0, 0, 0, 0))
-    _header_sky(deco, "tag")
+    _header_sky(deco, "tag", arc=False)
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
@@ -778,7 +788,7 @@ def _frame(cfg, now, title, subtitle, sky="nacht"):
     t = p.t
     img, planes_ = _story_body(sky if sky in BODY else "nacht")
     deco = Image.new("RGBA", (W, HH), (0, 0, 0, 0))
-    _header_sky(deco, sky)
+    _header_sky(deco, sky, arc=False)
     img.paste(deco, (0, 0), deco)
     p.img = img
     p.d = ImageDraw.Draw(p.img)
