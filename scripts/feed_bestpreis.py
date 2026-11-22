@@ -200,6 +200,10 @@ def texts(cfg, best, now, rueck):
 
 
 def main():
+    import argparse, json
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default="", help="Zielordner (Standard: output/facebook_ahora/feed_bestpreis_<datum>)")
+    a = ap.parse_args()
     cfg = load_config()
     cfg["route"]["months_ahead"] = v.N_MONATE
     now = cfg.now()
@@ -207,16 +211,21 @@ def main():
     if any(not m.ok for m in snap.months.values()):
         sys.exit("Preisabfrage unvollständig – keine Beiträge (keine alten Preise zeigen).")
     today = now.date()
-    out = PROJ / "output" / "facebook_ahora" / f"feed_bestpreis_{now:%Y-%m-%d}"
+    out = Path(a.out) if a.out else PROJ / "output" / "facebook_ahora" / f"feed_bestpreis_{now:%Y-%m-%d}"
     out.mkdir(parents=True, exist_ok=True)
+    info = {}
     for idx, (rueck, name) in enumerate(((False, "hinflug"), (True, "rueckflug")), 1):
         route = cfg.route_ret if rueck else cfg.route_out
         best = min((f for f in snap.fares(route) if f.day >= today), key=lambda f: (f.price, f.day))
-        render_feed(cfg, best, now, rueck).save(out / f"{idx}_{name}.png")
+        img = render_feed(cfg, best, now, rueck)
+        img.save(out / f"feed_{idx}_{name}.png")
+        img.convert("RGB").save(out / f"feed_{idx}_{name}.jpg", "JPEG", quality=95, subsampling=0, optimize=True)
         fb, ig = texts(cfg, best, now, rueck)
-        (out / f"{idx}_{name}_facebook.txt").write_text(fb, encoding="utf-8")
-        (out / f"{idx}_{name}_instagram.txt").write_text(ig, encoding="utf-8")
-    print(out)
+        (out / f"feed_{idx}_{name}_facebook.txt").write_text(fb, encoding="utf-8")
+        (out / f"feed_{idx}_{name}_instagram.txt").write_text(ig, encoding="utf-8")
+        info[name] = {"tag": best.day.isoformat(), "preis": best.price, "abflug": best.departure, "datei": f"feed_{idx}_{name}"}
+    (out / "feed_info.json").write_text(json.dumps(info, indent=1, ensure_ascii=False))
+    print(out, info)
 
 
 if __name__ == "__main__":

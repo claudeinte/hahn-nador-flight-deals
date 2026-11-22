@@ -21,7 +21,7 @@ concurrency:
 jobs:
   stories:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
       PYTHONPATH: src
       TZ: Europe/Berlin
@@ -75,8 +75,14 @@ jobs:
           print("JPEG:", [f.stem for f in src])
           EOF
 
+      - name: Feed-Beiträge (4:5) erstellen – günstigster Hin- und Rückflug
+        run: |
+          D=${{ steps.tag.outputs.datum }}
+          mkdir -p public/$D
+          python scripts/feed_bestpreis.py --out public/$D
+
       - name: Bilder öffentlich bereitstellen (Branch "stories")
-        if: steps.tag.outputs.fertig == 'nein' && inputs.modus == 'veroeffentlichen'
+        if: inputs.modus == 'veroeffentlichen'
         run: |
           D=${{ steps.tag.outputs.datum }}
           W=$(mktemp -d)
@@ -100,6 +106,14 @@ jobs:
           --png-ordner output/stories/${{ steps.tag.outputs.datum }}
           --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
+      - name: Feed-Beiträge veröffentlichen (nur wenn sich der Bestpreis geändert hat; Rückflug 5 Min. später)
+        env:
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
+        run: python scripts/feed_publish.py --ordner public/${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }}
+
       - name: Preisverlauf und Veröffentlichungs-Protokoll speichern
         if: always()
         run: |
@@ -107,6 +121,7 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add data/snapshots/ 2>/dev/null || true
           git add data/stories_veroeffentlicht.json 2>/dev/null || true
+          git add data/feed_veroeffentlicht.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -qm "Stories/Preise $(date +'%Y-%m-%d %H:%M')"
             for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
