@@ -811,52 +811,102 @@ def draw_airliner(img, cx, cy, length, angle_deg=0.0):
     return base.convert("RGB")
 
 
-def _route_marks(p):
-    """Kopfzeile der Sonder-Stories: links 🇩🇪 Frankfurt-Hahn (am linken Rand), rechts Nador 🇲🇦 (am rechten Rand),
-    dazwischen der gestrichelte Flugbogen mit großem Flugzeug."""
+ROUTE_STYLE = "einfach"          # einfach | kreis | doppelpfeil | kreuzen
+
+
+def _route_marks(p, style=None):
+    """Kopfzeile: 🇩🇪 Frankfurt-Hahn links, Nador 🇲🇦 rechts, dazwischen Flugbogen mit Flugzeug(en).
+    style: einfach (nur Hin), kreis (Hin oben, Rück unten), doppelpfeil (⇄), kreuzen (zwei Flugzeuge kreuzen sich)."""
+    style = style or ROUTE_STYLE
     t = p.t
     f = p.font("extrabold", 40)
-    y = ARC_Y
-    # links
+    y = ARC_Y - (22 if style in ("kreis", "kreuzen") else 0)
     xf = 24
     xf += p.flag("DE", xf, y - 17, 34) + 12
     for dx in (3, 0):
         p.d.text((xf + dx, y + dx), "Frankfurt-Hahn", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
     a0 = xf + p.tw("Frankfurt-Hahn", f) + 26
-    # rechts (bündig am rechten Rand)
-    fw = 51                                                   # Flaggenbreite bei Höhe 34
+    fw = 51
     xr_flag = W - 24 - fw
     p.flag("MA", xr_flag, y - 17, 34)
     xn = xr_flag - 12 - p.tw("Nador", f)
     for dx in (3, 0):
         p.d.text((xn + dx, y + dx), "Nador", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
     a1 = xn - 26
-    amp = 58
-    t_ = 0.5
 
-    def B(u):
-        return (a0 + (a1 - a0) * u, y - amp * math.sin(math.pi * u))
     lay = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
     ld = ImageDraw.Draw(lay)
-    n = 60
-    for i in range(n):                                        # Kondensstreifen bis zum Flugzeug (auslaufend)
-        u0, u1 = t_ * i / n, t_ * (i + 1) / n
-        k = (i + 1) / n
-        ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(60 + 195 * k)), width=int(3 + 6 * k))
-    u = t_ + 0.30                                             # gestrichelt ab der Flugzeugnase bis zum Ziel
-    while u < 0.96:
-        ld.line((B(u), B(min(u + 0.04, 0.96))), fill=(255, 255, 255, 235), width=5)
-        u += 0.075
+
+    def curve(amp, sign=1):
+        return lambda u: (a0 + (a1 - a0) * u, y - sign * amp * math.sin(math.pi * u))
+
+    def trail(B, t0, t1, rev=False):                       # durchgezogen, zum Flugzeug hin kräftiger
+        n = 50
+        for i in range(n):
+            u0, u1 = t0 + (t1 - t0) * i / n, t0 + (t1 - t0) * (i + 1) / n
+            k = (i + 1) / n if not rev else 1 - i / n
+            ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(60 + 195 * k)), width=int(3 + 6 * k))
+
+    def dashes(B, t0, t1):
+        u = t0
+        while u < t1:
+            ld.line((B(u), B(min(u + 0.04, t1))), fill=(255, 255, 255, 235), width=5)
+            u += 0.075
+
+    def arrowhead(B, u_tip, u_back, col):
+        (tx, ty), (bx, by) = B(u_tip), B(u_back)
+        a = math.atan2(ty - by, tx - bx)
+        Lh, Wh = 26, 15
+        return [(tx, ty), (tx - Lh * math.cos(a) + Wh * math.sin(a), ty - Lh * math.sin(a) - Wh * math.cos(a)),
+                (tx - Lh * math.cos(a) - Wh * math.sin(a), ty - Lh * math.sin(a) + Wh * math.cos(a))], col
+
+    planes, heads, tags = [], [], []
+    if style == "kreis":
+        up, dn = curve(62, 1), curve(40, -1)
+        trail(up, 0, 0.45); dashes(up, 0.72, 0.95)
+        trail(lambda u: dn(1 - u), 0, 0.45); dashes(lambda u: dn(1 - u), 0.72, 0.95)
+        planes += [(up(0.45), 0, 170), (dn(0.55), 180, 170)]
+        heads += [arrowhead(up, 0.995, 0.93, t.green), arrowhead(lambda u: dn(1 - u), 0.995, 0.93, t.accent)]
+        tags += [("Hinflug", up(0.18), -30), ("Rückflug", dn(0.82), 30)]
+    elif style == "kreuzen":
+        up, dn = curve(58, 1), curve(58, -1)
+        trail(up, 0, 0.38); trail(lambda u: dn(1 - u), 0, 0.38)
+        dashes(up, 0.62, 0.95); dashes(lambda u: dn(1 - u), 0.62, 0.95)
+        planes += [(up(0.38), -8, 160), (dn(0.62), 188, 160)]
+        heads += [arrowhead(up, 0.995, 0.93, t.green), arrowhead(lambda u: dn(1 - u), 0.995, 0.93, t.accent)]
+    else:
+        B = curve(58, 1)
+        if style == "doppelpfeil":
+            dashes(B, 0.06, 0.32); dashes(B, 0.68, 0.94)
+            heads += [arrowhead(B, 0.995, 0.93, t.green), arrowhead(lambda u: B(1 - u), 0.995, 0.93, t.accent)]
+        else:
+            trail(B, 0, 0.5); dashes(B, 0.8, 0.96)
+        planes.append((B(0.5), 0, 220))
     base = p.img.convert("RGBA")
     base.alpha_composite(lay.filter(ImageFilter.GaussianBlur(4)))
     base.alpha_composite(lay)
     p.img = base.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
-    for (x, c) in ((a0, t.accent), (a1, t.green)):
-        p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c, outline=(255, 255, 255), width=3)
-    px, py = B(t_)
-    p.img = draw_airliner_side(p.img, px, py - 4, 220, 0)
-    p.d = ImageDraw.Draw(p.img)
+    for pts, col in heads:
+        p.d.polygon([(x_ + 2, y_ + 2) for x_, y_ in pts], fill=(0, 0, 0))
+        p.d.polygon(pts, fill=col, outline=(255, 255, 255), width=2)
+    if style in ("einfach",):
+        for (x, c) in ((a0, t.accent), (a1, t.green)):
+            p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c, outline=(255, 255, 255), width=3)
+    if style == "doppelpfeil":                              # ⇄-Symbol über dem Flugzeug
+        cx_, cy_ = curve(58, 1)(0.5)
+        p.d.rounded_rectangle((cx_ - 70, cy_ - 104, cx_ + 70, cy_ - 62), 20, fill=(255, 255, 255))
+        p.d.text((cx_, cy_ - 83), "Hin & Rück", font=p.font("extrabold", 22), fill=(30, 40, 70), anchor="mm")
+    for (x, y_), ang, ln in planes:
+        flip = ang > 90 or ang < -90
+        p.img = draw_airliner_side(p.img, x, y_ - 4, ln, (ang - 180) if flip else ang, flip=flip)
+        p.d = ImageDraw.Draw(p.img)
+    for txt, (x, y_), off in tags:
+        ft = p.font("extrabold", 22)
+        w_ = p.tw(txt, ft) + 20
+        p.d.rounded_rectangle((x - w_ / 2, y_ + off - 16, x + w_ / 2, y_ + off + 16), 16,
+                              fill=t.green if txt == "Hinflug" else t.accent)
+        p.d.text((x, y_ + off), txt, font=ft, fill=(255, 255, 255), anchor="mm")
 
 
 def render_summary(cfg, snap, months, now):
