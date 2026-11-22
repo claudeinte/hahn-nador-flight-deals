@@ -1112,26 +1112,43 @@ def week_ago_prices(today):
     return {(fa.route, fa.day): fa.price for fa in best.fares()}, best.fetched_at
 
 
-def _sale_background():
-    """Eigener Hintergrund für Preisstürze: dunkles Smaragd mit fallenden Pfeilen und Lichtschein."""
+def _sale_background(cfg=None):
+    """Eigener Flug-Hintergrund für Preisstürze: Abendhimmel (Violett → Nachtblau), Wolken,
+    Flugzeuge mit Kondensstreifen – eindeutig „Fliegen“, nicht Börse."""
     img = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(img)
     for y in range(H):
-        d.line((0, y, W, y), fill=lerp((10, 52, 42), (3, 16, 14), y / H))
+        d.line((0, y, W, y), fill=lerp((92, 46, 140), (10, 16, 48), (y / H) ** 0.8))
     lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     ld = ImageDraw.Draw(lay)
-    rnd = random.Random(7)
-    for _ in range(46):                                  # fallende Pfeile (Preise sinken)
-        x, y, sz = rnd.randint(0, W), rnd.randint(0, H), rnd.randint(18, 56)
-        a = rnd.randint(14, 34)
-        ld.rectangle((x - sz * .16, y - sz, x + sz * .16, y), fill=(120, 255, 180, a))
-        ld.polygon([(x - sz * .45, y), (x + sz * .45, y), (x, y + sz * .6)], fill=(120, 255, 180, a))
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((90, 520, 990, 1400), fill=(40, 220, 130, 46))
-    lay.alpha_composite(glow.filter(ImageFilter.GaussianBlur(140)))
+    rnd = random.Random(4)
+    for _ in range(14):                                  # weiche Wolken
+        cx, cy, sc = rnd.randint(-100, W + 100), rnd.choice((rnd.randint(40, 520), rnd.randint(1500, 1880))), rnd.uniform(.8, 1.8)
+        for dx, dy, rr in ((0, 0, 50), (55, -22, 62), (120, 0, 50), (60, 18, 48), (-48, 12, 36)):
+            ld.ellipse((cx + (dx - rr) * sc, cy + (dy - rr) * sc, cx + (dx + rr) * sc, cy + (dy + rr) * sc),
+                       fill=(255, 220, 240, 26))
+    lay = lay.filter(ImageFilter.GaussianBlur(10))
+    ld = ImageDraw.Draw(lay)
+    p = Painter(cfg) if cfg else None
+    planes = [(250, 110, 14, 1.3), (1000, 540, -22, 0.9), (150, 1560, 12, 1.1), (900, 1800, -14, 1.0), (760, 70, 6, 0.7)]
+    for x, y, ang, sc in planes:                         # Kondensstreifen
+        a = math.radians(ang)
+        L = 420 * sc
+        for k in range(30):
+            t0, t1 = k / 30, (k + 1) / 30
+            ld.line((x - L * (1 - t0) * math.cos(a), y - L * (1 - t0) * math.sin(a),
+                     x - L * (1 - t1) * math.cos(a), y - L * (1 - t1) * math.sin(a)),
+                    fill=(255, 255, 255, int(14 + 110 * t1)), width=max(2, int(8 * sc * t1)))
     base = img.convert("RGBA")
     base.alpha_composite(lay)
-    return base.convert("RGB")
+    img = base.convert("RGB")
+    if p:
+        p.img = img
+        p.d = ImageDraw.Draw(p.img)
+        for x, y, ang, sc in planes:
+            p.plane(x, y, int(52 * sc), ang, (255, 255, 255))
+        img = p.img
+    return img
 
 
 def _starburst(p, cx, cy, r, text, fill=(240, 62, 62)):
@@ -1170,7 +1187,7 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
         return None
     p = Painter(cfg)
     t = p.t
-    p.img = _sale_background()
+    p.img = _sale_background(cfg)
     p.d = ImageDraw.Draw(p.img)
     week = prev_at and (today - prev_at.date()).days >= 7
     when_long = ((f"von vor einer Woche ({WOCHENTAGE[prev_at.weekday()]}, {prev_at:%d.%m.%Y})" if week
@@ -1183,16 +1200,24 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
         p.d.text(xy, txt, font=font, fill=fill, anchor=anchor)
 
     # Kopf
+    # großes rotes Ticket-Band „ÜBER 20 % GÜNSTIGER“ mit Flugzeug
     lab = f"ÜBER {min_pct:.0f} % GÜNSTIGER"
-    fl = p.font("extrabold", 30)
-    bw = p.tw(lab, fl) + 56
-    p.d.rounded_rectangle(((W - bw) / 2, 232, (W + bw) / 2, 288), 28, fill=(240, 62, 62))
-    p.d.text((W / 2, 260), lab, font=fl, fill=(255, 255, 255), anchor="mm")
-    shadow((W / 2, 362), "PREISSTÜRZE", p.font("extrabold", 120), (255, 255, 255))
+    fl = p.font("extrabold", 56)
+    bw = p.tw(lab, fl) + 150
+    x0, y0, x1, y1 = (W - bw) / 2, 196, (W + bw) / 2, 290
+    p.d.rounded_rectangle((x0 + 6, y0 + 8, x1 + 6, y1 + 8), 22, fill=(0, 0, 0))
+    p.d.rounded_rectangle((x0, y0, x1, y1), 22, fill=(236, 50, 60), outline=(255, 255, 255), width=4)
+    for cxn in (x0, x1):                                 # Ticket-Einkerbungen
+        p.d.ellipse((cxn - 16, (y0 + y1) / 2 - 16, cxn + 16, (y0 + y1) / 2 + 16), fill=lerp((92, 46, 140), (10, 16, 48), .1))
+    for yy in range(int(y0) + 12, int(y1) - 8, 14):     # Perforation links
+        p.d.line((x0 + 96, yy, x0 + 96, yy + 7), fill=(255, 210, 210), width=3)
+    p.plane(x0 + 52, (y0 + y1) / 2, 30, -20, (255, 255, 255))
+    p.d.text((x0 + 120, (y0 + y1) / 2 + 2), lab, font=fl, fill=(255, 255, 255), anchor="lm")
+    shadow((W / 2, 380), "PREISSTÜRZE", p.font("extrabold", 124), (255, 255, 255))
     chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
-    shadow((W / 2, 452), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (232, 240, 236), off=2)
+    shadow((W / 2, 466), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (240, 236, 250), off=2)
     sub = f"Verglichen mit den Preisen {when_long}"
-    shadow((W / 2, 494), sub, p.fit(sub, "bold", 27, W - 2 * PAD), (170, 220, 195), off=2)
+    shadow((W / 2, 506), sub, p.fit(sub, "bold", 27, W - 2 * PAD), (214, 200, 240), off=2)
 
     def route_head(y, label, outb):
         o, d_ = (("Frankfurt-Hahn", "DE"), ("Nador", "MA")) if outb else (("Nador", "MA"), ("Frankfurt-Hahn", "DE"))
@@ -1215,7 +1240,7 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
     def glass(box, outline, r=34):
         x0, y0, x1, y1 = map(int, box)
         reg = p.img.crop((x0, y0, x1, y1)).filter(ImageFilter.GaussianBlur(20)).convert("RGBA")
-        reg.alpha_composite(Image.new("RGBA", reg.size, (6, 24, 20, 190)))
+        reg.alpha_composite(Image.new("RGBA", reg.size, (12, 16, 44, 200)))
         m = Image.new("L", reg.size, 0)
         ImageDraw.Draw(m).rounded_rectangle((0, 0, reg.width - 1, reg.height - 1), r, fill=255)
         p.img.paste(reg.convert("RGB"), (x0, y0), m)
