@@ -650,6 +650,103 @@ def _story_body(kind):
     return base.convert("RGB"), planes
 
 
+def draw_airliner_side(img, cx, cy, length, angle_deg=-6.0, flip=False):
+    """Realistisches Verkehrsflugzeug in Seitenansicht (leicht steigend): Rumpf mit Licht/Schatten,
+    Fensterreihe, Türen, Cockpit, Triebwerk mit Einlauf, Flügel, Seitenleitwerk in Seitenfarben (blau/türkis,
+    neutral – kein Airline-Design), Schlagschatten. flip=True: Nase nach links."""
+    S = 4
+    L = length * S
+    Wb, Hb = int(L * 1.15), int(L * 0.62)
+    lay = Image.new("RGBA", (Wb, Hb), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    ox, oy = Wb * 0.07, Hb * 0.55                       # Heck-Mittelpunkt des Rumpfes
+    fh = L * 0.115                                       # Rumpfhöhe
+    def X(u):                                            # 0 = Heck, 1 = Nase
+        return ox + u * L
+
+    # --- ferner Flügel (dunkler, hinter dem Rumpf)
+    d.polygon([(X(0.52), oy - fh * 0.10), (X(0.33), oy - fh * 1.35), (X(0.27), oy - fh * 1.35), (X(0.40), oy - fh * 0.10)],
+              fill=(150, 162, 180, 255))
+    # --- Seitenleitwerk (Verlauf blau → türkis)
+    fin = [(X(0.02), oy - fh * 0.35), (X(0.10), oy - fh * 2.55), (X(0.17), oy - fh * 2.55), (X(0.21), oy - fh * 0.40)]
+    finm = Image.new("L", lay.size, 0)
+    ImageDraw.Draw(finm).polygon(fin, fill=255)
+    grad = Image.new("RGBA", lay.size)
+    gd = ImageDraw.Draw(grad)
+    for yy in range(Hb):
+        gd.line((0, yy, Wb, yy), fill=lerp((30, 90, 200), (40, 190, 210), min(1, max(0, (oy - yy) / (fh * 2.6)))) + (255,))
+    lay.paste(grad, (0, 0), finm)
+    d = ImageDraw.Draw(lay)
+    d.line([(X(0.105), oy - fh * 2.45), (X(0.165), oy - fh * 2.45)], fill=(255, 255, 255, 200), width=int(S * 2))
+    # --- Rumpf: senkrechter Verlauf (oben hell, unten Schatten), runde Nase, spitzes Heck
+    body = Image.new("L", lay.size, 0)
+    bd = ImageDraw.Draw(body)
+    bd.rounded_rectangle((X(0.10), oy - fh / 2, X(0.96), oy + fh / 2), radius=int(fh / 2), fill=255)
+    bd.ellipse((X(0.90), oy - fh / 2, X(1.0), oy + fh * 0.48), fill=255)
+    bd.polygon([(X(0.12), oy - fh / 2), (X(0.0), oy - fh * 0.38), (X(0.01), oy - fh * 0.18), (X(0.14), oy + fh / 2)], fill=255)
+    shade = Image.new("RGBA", lay.size)
+    sd = ImageDraw.Draw(shade)
+    for yy in range(Hb):
+        u = (yy - (oy - fh / 2)) / fh
+        if u < 0.18:
+            col = lerp((255, 255, 255), (246, 249, 253), u / 0.18)
+        elif u < 0.62:
+            col = lerp((246, 249, 253), (214, 222, 233), (u - 0.18) / 0.44)
+        else:
+            col = lerp((214, 222, 233), (150, 162, 182), min(1, (u - 0.62) / 0.38))
+        sd.line((0, yy, Wb, yy), fill=col + (255,))
+    lay.paste(shade, (0, 0), body)
+    d = ImageDraw.Draw(lay)
+    # Zierstreifen (Seitenfarbe), Fenster, Türen, Cockpit
+    d.line([(X(0.16), oy + fh * 0.12), (X(0.90), oy + fh * 0.12)], fill=(40, 150, 220, 255), width=int(fh * 0.07))
+    for k in range(34):
+        u = 0.22 + k * 0.019
+        if 0.47 < u < 0.51:
+            continue
+        x = X(u)
+        d.rounded_rectangle((x - fh * 0.045, oy - fh * 0.20, x + fh * 0.045, oy - fh * 0.05), radius=int(fh * 0.04),
+                            fill=(46, 62, 88, 255))
+    for u in (0.20, 0.86):
+        d.rounded_rectangle((X(u) - fh * 0.08, oy - fh * 0.33, X(u) + fh * 0.08, oy + fh * 0.18), radius=int(fh * 0.05),
+                            outline=(170, 182, 198, 255), width=int(S * 1.2))
+    d.polygon([(X(0.925), oy - fh * 0.24), (X(0.965), oy - fh * 0.22), (X(0.985), oy - fh * 0.08), (X(0.93), oy - fh * 0.08)],
+              fill=(36, 52, 80, 255))
+    # Höhenleitwerk
+    d.polygon([(X(0.03), oy - fh * 0.15), (X(-0.03), oy - fh * 0.05), (X(0.10), oy + fh * 0.02), (X(0.16), oy - fh * 0.02)],
+              fill=(196, 206, 220, 255))
+    # --- naher Flügel (unter dem Rumpf nach vorne unten) mit Triebwerk
+    d.polygon([(X(0.40), oy + fh * 0.30), (X(0.60), oy + fh * 0.25), (X(0.45), oy + fh * 1.55), (X(0.36), oy + fh * 1.55)],
+              fill=(214, 222, 234, 255))
+    d.line([(X(0.36), oy + fh * 1.55), (X(0.45), oy + fh * 1.55)], fill=(150, 162, 182, 255), width=int(S * 2))
+    ey = oy + fh * 0.80
+    eng = Image.new("L", lay.size, 0)
+    ImageDraw.Draw(eng).rounded_rectangle((X(0.47), ey - fh * 0.24, X(0.62), ey + fh * 0.24), radius=int(fh * 0.24), fill=255)
+    eg = Image.new("RGBA", lay.size)
+    egd = ImageDraw.Draw(eg)
+    for yy in range(int(ey - fh * 0.3), int(ey + fh * 0.3)):
+        u = (yy - (ey - fh * 0.24)) / (fh * 0.48)
+        egd.line((0, yy, Wb, yy), fill=lerp((244, 247, 252), (120, 134, 156), max(0, min(1, u))) + (255,))
+    lay.paste(eg, (0, 0), eng)
+    d = ImageDraw.Draw(lay)
+    d.ellipse((X(0.605), ey - fh * 0.22, X(0.635), ey + fh * 0.22), fill=(40, 48, 62, 255))
+    d.ellipse((X(0.612), ey - fh * 0.12, X(0.628), ey + fh * 0.12), fill=(170, 180, 196, 255))
+    # Glanzlicht oben
+    d.line([(X(0.18), oy - fh * 0.40), (X(0.88), oy - fh * 0.40)], fill=(255, 255, 255, 230), width=int(fh * 0.05))
+    if flip:
+        lay = lay.transpose(Image.FLIP_LEFT_RIGHT)
+    lay = lay.rotate(-angle_deg if not flip else angle_deg, resample=Image.BICUBIC, expand=True)
+    sh = Image.new("RGBA", lay.size, (0, 0, 0, 0))
+    sh.putalpha(lay.getchannel("A").point(lambda v: int(v * 0.42)))
+    sh = sh.filter(ImageFilter.GaussianBlur(S * 7))
+    w2, h2 = lay.width // S, lay.height // S
+    lay = lay.resize((w2, h2), Image.LANCZOS)
+    sh = sh.resize((w2, h2), Image.LANCZOS)
+    base = img.convert("RGBA")
+    base.alpha_composite(sh, (int(cx - w2 / 2 + 10), int(cy - h2 / 2 + 16)))
+    base.alpha_composite(lay, (int(cx - w2 / 2), int(cy - h2 / 2)))
+    return base.convert("RGB")
+
+
 def draw_airliner(img, cx, cy, length, angle_deg=0.0):
     """Realistisches Verkehrsflugzeug (Draufsicht): Rumpf mit Schattierung, gepfeilte Flügel, Triebwerke,
     Höhenleitwerk, Cockpitfenster und Schlagschatten. angle 0 = Nase nach rechts. 4-fach überabgetastet."""
@@ -729,7 +826,7 @@ def _route_marks(p):
     t_ = 0.5
     px = a0 + (a1 - a0) * t_
     py = y - amp
-    p.img = draw_airliner(p.img, px, py, 150, 0)
+    p.img = draw_airliner_side(p.img, px, py - 6, 250, -4)
     p.d = ImageDraw.Draw(p.img)
 
 
@@ -1106,7 +1203,7 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
     p.d.polygon(pts_, fill=t.green, outline=(255, 255, 255), width=3)
     x, y = B(plane_t)
     qx, qy = B(plane_t + 0.01)
-    p.img = draw_airliner(p.img, x, y, 150, math.degrees(math.atan2(qy - y, qx - x)))
+    p.img = draw_airliner_side(p.img, x, y - 4, 270, math.degrees(math.atan2(qy - y, qx - x)))
     p.d = ImageDraw.Draw(p.img)
 
 
@@ -1224,7 +1321,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
 
     # Flugbogen mit Städten
     ya = 700
-    _contrail(p, (150, ya), (930, ya), 470, 0.5)
+    _contrail(p, (150, ya), (930, ya), 540, 0.5)
     fcity = p.font("extrabold", 40)
     p.flag(src_flag, 56, ya + 34, 30)
     shadow((116, ya + 50), src_city, fcity, (255, 255, 255), anchor="lm")
