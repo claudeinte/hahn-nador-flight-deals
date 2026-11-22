@@ -73,6 +73,7 @@ DECO_END = 156
 OFF = 36                              # Sonder-Stories: Kopf tiefer, außerhalb der Instagram-Leiste
 HH = DECO_END + OFF
 ARC_Y = HH - 24                        # Endpunkte des Flugbogens
+ARC_X0, ARC_X1, ARC_AMP = 400, 720, 56
 PLANE_T = 0.62                         # Flugzeug etwas rechts der Mitte (Profilname links bleibt frei)                        # bis hier reicht die Kopf-Deko (liegt hinter der Instagram-Leiste)
 
 
@@ -336,7 +337,20 @@ def background(th):
             _leaf(bd, rnd.randint(0, W), rnd.randint(30, 66), rnd.randint(7, 12), rnd.randint(0, 180),
                   (*rnd.choice(th["leaves"]), 200))
     img.paste(bot, (0, H - 110), bot)
-    return img
+    # Glanz in der Mitte, feine Sterne und zwei Flugzeuge mit Kondensstreifen (Monatsfarbe als Akzent)
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse((40, 420, 1040, 1600), fill=(*th["accent"], 46))
+    lay.alpha_composite(glow.filter(ImageFilter.GaussianBlur(160)))
+    ld = ImageDraw.Draw(lay)
+    rnd = random.Random(31)
+    for _ in range(110):
+        x, y = rnd.randint(0, W), rnd.randint(DECO_END, H - 120)
+        r_ = rnd.choice((1.0, 1.4, 1.8))
+        ld.ellipse((x - r_, y - r_, x + r_, y + r_), fill=(255, 255, 255, rnd.randint(30, 90)))
+    base = img.convert("RGBA")
+    base.alpha_composite(lay)
+    return base.convert("RGB")
 
 
 def fake_delta(route, day):
@@ -513,6 +527,15 @@ def render_month(cfg, snap, prev, YY, MM, now, testdaten=False):
         bw = p.tw(lab, fv) + 30
         p.d.rounded_rectangle(((W - bw) / 2, H - 80, (W + bw) / 2, H - 48), 16, fill=(255, 210, 80))
         p.d.text((W / 2, H - 64), lab, font=fv, fill=(30, 25, 10), anchor="mm")
+    for x_, y_, a_, sc_ in ((170, 1846, 6, 0.8), (1000, 1850, -6, 0.7)):   # Flugzeuge im Fuß (über dem Hinweis)
+        L_ = 260 * sc_
+        ar = math.radians(a_)
+        for k_ in range(24):
+            t0, t1 = k_ / 24, (k_ + 1) / 24
+            p.d.line((x_ - L_ * (1 - t0) * math.cos(ar), y_ - L_ * (1 - t0) * math.sin(ar),
+                      x_ - L_ * (1 - t1) * math.cos(ar), y_ - L_ * (1 - t1) * math.sin(ar)),
+                     fill=lerp(th["body"][1], (255, 255, 255), 0.2 + 0.6 * t1), width=max(2, int(6 * sc_ * t1)))
+        p.plane(x_, y_, int(40 * sc_), a_, (255, 255, 255))
     return p.img
 
 
@@ -577,9 +600,9 @@ def _header_sky(deco, kind, arc=True):
                         (x, y + r_), (x - r_ * .28, y + r_ * .28), (x - r_, y), (x - r_ * .28, y - r_ * .28)], fill=col)
     if not arc:
         return
-    pts = [(170 + (740 * i / 40), ARC_Y - 72 * math.sin(math.pi * i / 40)) for i in range(41)]
-    for i in range(0, 40, 2):
-        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 230), width=5)
+    pts = [(ARC_X0 + ((ARC_X1 - ARC_X0) * i / 24), ARC_Y - ARC_AMP * math.sin(math.pi * i / 24)) for i in range(25)]
+    for i in range(0, 24, 2):
+        dd.line((pts[i], pts[i + 1]), fill=(255, 255, 255, 235), width=6)
 
 
 BODY = {   # Kopf-Unterkante → Mitte → unten
@@ -628,29 +651,28 @@ def _story_body(kind):
 
 
 def _route_marks(p):
-    """Start/Ziel am Flugbogen: links 🇩🇪 HHN, rechts Nador 🇲🇦."""
+    """Start/Ziel am Flugbogen: links 🇩🇪 Frankfurt-Hahn, rechts Nador 🇲🇦 (groß, gut lesbar in Stories)."""
     t = p.t
-    for (x, y), col in (((170, ARC_Y), t.accent), ((910, ARC_Y), t.green)):
-        p.d.ellipse((x - 9, y - 9, x + 9, y + 9), fill=col, outline=(255, 255, 255), width=3)
-    f = p.font("extrabold", 30)
-    # links: Flagge + HHN, rechtsbündig vor dem Startpunkt
-    tw_ = p.tw("HHN", f)
-    xr = 152
-    p.d.text((xr - tw_ + 2, ARC_Y + 2), "HHN", font=f, fill=(0, 0, 0), anchor="lm")
-    p.d.text((xr - tw_, ARC_Y), "HHN", font=f, fill=(255, 255, 255), anchor="lm")
-    p.flag("DE", xr - tw_ - 10 - 40, ARC_Y - 13, 26)
-    # rechts: Nador + Flagge, nach dem Zielpunkt
-    xl = 928
-    p.d.text((xl + 2, ARC_Y + 2), "Nador", font=f, fill=(0, 0, 0), anchor="lm")
-    p.d.text((xl, ARC_Y), "Nador", font=f, fill=(255, 255, 255), anchor="lm")
-    p.flag("MA", xl + p.tw("Nador", f) + 10, ARC_Y - 13, 26)
-    # großes Flugzeug auf dem Bogen, in Flugrichtung
-    px = 170 + 740 * PLANE_T
-    py = ARC_Y - 72 * math.sin(math.pi * PLANE_T)
-    ang = math.degrees(math.atan2(-72 * math.pi * math.cos(math.pi * PLANE_T), 740))
-    p.d.ellipse((px - 47, py - 47, px + 47, py + 47), fill=(255, 255, 255))
-    p.d.ellipse((px - 42, py - 42, px + 42, py + 42), fill=t.accent)
-    p.plane(px, py, 46, ang, (255, 255, 255))
+    for (x, y), col in (((ARC_X0, ARC_Y), t.accent), ((ARC_X1, ARC_Y), t.green)):
+        p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=col, outline=(255, 255, 255), width=3)
+    f = p.font("extrabold", 38)
+    lab = "Frankfurt-Hahn"
+    tw_ = p.tw(lab, f)
+    xr = ARC_X0 - 22
+    for dx in (3, 0):
+        p.d.text((xr - tw_ + dx, ARC_Y + dx), lab, font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
+    p.flag("DE", xr - tw_ - 12 - 50, ARC_Y - 16, 32)
+    xl = ARC_X1 + 22
+    for dx in (3, 0):
+        p.d.text((xl + dx, ARC_Y + dx), "Nador", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
+    p.flag("MA", xl + p.tw("Nador", f) + 12, ARC_Y - 16, 32)
+    t_ = 0.55
+    px = ARC_X0 + (ARC_X1 - ARC_X0) * t_
+    py = ARC_Y - ARC_AMP * math.sin(math.pi * t_)
+    ang = math.degrees(math.atan2(-ARC_AMP * math.pi * math.cos(math.pi * t_), ARC_X1 - ARC_X0))
+    p.d.ellipse((px - 44, py - 44, px + 44, py + 44), fill=(255, 255, 255))
+    p.d.ellipse((px - 39, py - 39, px + 39, py + 39), fill=t.accent)
+    p.plane(px, py, 42, ang, (255, 255, 255))
 
 
 def render_summary(cfg, snap, months, now):
@@ -806,8 +828,10 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
     p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, outline=col, width=4)
     x0 = PAD + 26
     if label:
-        p.d.rounded_rectangle((x0, top + 18, x0 + p.tw(label, p.font("extrabold", 30)) + 36, top + 66), 24, fill=t.accent)
-        p.d.text((x0 + 18, top + 42), label, font=p.font("extrabold", 30), fill=(255, 255, 255), anchor="lm")
+        p.d.rounded_rectangle((x0 + 3, top + 21, x0 + p.tw(label, p.font("extrabold", 32)) + 42, top + 73), 26, fill=(0, 0, 0))
+        p.d.rounded_rectangle((x0, top + 18, x0 + p.tw(label, p.font("extrabold", 32)) + 39, top + 70), 26, fill=GOLD,
+                              outline=(255, 255, 255), width=3)
+        p.d.text((x0 + 20, top + 44), label, font=p.font("extrabold", 32), fill=(40, 28, 6), anchor="lm")
     else:
         _rank_badge(p, x0 + 34, top + h / 2 + 4, 34, rank, fpath)
     lx = x0 + (0 if label else 92)
@@ -1429,13 +1453,22 @@ def main_alle(testdaten=False):
     months = next_months(now.date(), N_MONATE)
     out = PROJ / "output" / "stories" / now.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
-    imgs = [render_summary(cfg, snap, months, now), render_kombis(cfg, snap, now), render_dauer(cfg, snap, now)]
-    for im, name in zip(imgs, ("01_uebersicht", "02_top5_kombinationen", "03_nach_dauer")):
+    pv_w, pat_w = week_ago_prices(now.date())
+    seq = [("01_guenstigster_hinflug", render_bestangebot(cfg, snap, now)),
+           ("02_guenstigster_rueckflug", render_bestangebot(cfg, snap, now, rueck=True)),
+           ("03_top5_kombinationen", render_kombis(cfg, snap, now)),
+           ("04_nach_dauer", render_dauer(cfg, snap, now)),
+           ("05_bestpreise_pro_monat", render_summary(cfg, snap, months, now))]
+    ps = render_preisstuerze(cfg, snap, pv_w, pat_w, now)
+    if ps is not None:                                        # nur wenn es Preisstürze gibt
+        seq.append(("06_preisstuerze", ps))
+    for y_, m_ in months:
+        seq.append((f"{len(seq) + 1:02d}_kalender_{y_}-{m_:02d}", render_month(cfg, snap, prev, y_, m_, now, testdaten)))
+    imgs = []
+    for name, im in seq:
         im.save(out / f"{name}.png")
-    for i, (y_, m_) in enumerate(months, start=4):
-        im = render_month(cfg, snap, prev, y_, m_, now, testdaten)
-        im.save(out / f"{i:02d}_kalender_{y_}-{m_:02d}.png")
         imgs.append(im)
+    (out / "anzahl.txt").write_text(str(len(seq)))
     # Übersichtsblatt aller 10 Stories
     cols = 6
     rows_ = (len(imgs) + cols - 1) // cols
@@ -1443,7 +1476,7 @@ def main_alle(testdaten=False):
     for k, im in enumerate(imgs):
         sheet.paste(im.resize((216, 384), Image.LANCZOS), (12 + (k % cols) * 228, 12 + (k // cols) * 396))
     sheet.save(out / "00_alle_stories.png")
-    story_view(imgs[0], cfg, 1).save(out / "ansicht_01.png")
+    story_view(imgs[0], cfg, 1, len(imgs)).save(out / "ansicht_01.png")
     print(out)
 
 
