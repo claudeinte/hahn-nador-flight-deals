@@ -832,16 +832,30 @@ def _route_marks(p):
         p.d.text((xn + dx, y + dx), "Nador", font=f, fill=(0, 0, 0) if dx else (255, 255, 255), anchor="lm")
     a1 = xn - 26
     amp = 58
-    pts = [(a0 + (a1 - a0) * i / 24, y - amp * math.sin(math.pi * i / 24)) for i in range(25)]
-    for i in range(0, 24, 2):
-        p.d.line((pts[i][0] + 2, pts[i][1] + 2, pts[i + 1][0] + 2, pts[i + 1][1] + 2), fill=(0, 0, 0), width=6)
-        p.d.line((pts[i], pts[i + 1]), fill=(255, 255, 255), width=6)
+    t_ = 0.5
+
+    def B(u):
+        return (a0 + (a1 - a0) * u, y - amp * math.sin(math.pi * u))
+    lay = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lay)
+    n = 60
+    for i in range(n):                                        # Kondensstreifen bis zum Flugzeug (auslaufend)
+        u0, u1 = t_ * i / n, t_ * (i + 1) / n
+        k = (i + 1) / n
+        ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(60 + 195 * k)), width=int(3 + 6 * k))
+    u = t_ + 0.30                                             # gestrichelt ab der Flugzeugnase bis zum Ziel
+    while u < 0.96:
+        ld.line((B(u), B(min(u + 0.04, 0.96))), fill=(255, 255, 255, 235), width=5)
+        u += 0.075
+    base = p.img.convert("RGBA")
+    base.alpha_composite(lay.filter(ImageFilter.GaussianBlur(4)))
+    base.alpha_composite(lay)
+    p.img = base.convert("RGB")
+    p.d = ImageDraw.Draw(p.img)
     for (x, c) in ((a0, t.accent), (a1, t.green)):
         p.d.ellipse((x - 11, y - 11, x + 11, y + 11), fill=c, outline=(255, 255, 255), width=3)
-    t_ = 0.5
-    px = a0 + (a1 - a0) * t_
-    py = y - amp
-    p.img = draw_airliner_side(p.img, px, py - 6, 250, -4)
+    px, py = B(t_)
+    p.img = draw_airliner_side(p.img, px, py - 4, 220, 0)
     p.d = ImageDraw.Draw(p.img)
 
 
