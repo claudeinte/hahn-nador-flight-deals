@@ -177,7 +177,7 @@ def inhalt(name, cfg, snap, now):
             top.append(c)
             if len(top) == 5:
                 break
-        hook = f"🏆 Die 5 günstigsten Kombinationen hin & zurück: {BEIDE} – schon ab {fmt_price(top[0][0])}{pp}!"
+        hook = f"🏆 Die 5 günstigsten Kombinationen pro Person hin & zurück: {BEIDE} – schon ab {fmt_price(top[0][0])}{pp}!"
         rows = [(f"3–30 Nächte · die günstigsten der nächsten {v.N_MONATE} Monate:", None), ("", None)]
         for i, (tot, _, _, o_, r_) in enumerate(top):
             rows.append((f"{MEDAL[i]} {fmt_price(tot)}{pp} · {(r_.day - o_.day).days} Nächte", None))

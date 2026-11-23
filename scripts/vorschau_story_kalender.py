@@ -1002,8 +1002,9 @@ def render_summary(cfg, snap, months, now):
     return p.img
 
 
-def _frame(cfg, now, title, subtitle, sky="nacht"):
-    """Gemeinsamer Rahmen für Sonder-Stories: Nachthimmel mit Flugbogen, Titel, Prüfzeit, Untertitel, Logo."""
+def _frame(cfg, now, title, subtitle, sky="nacht", title2=None):
+    """Gemeinsamer Rahmen für Sonder-Stories: Nachthimmel mit Flugbogen, Titel, Prüfzeit, Untertitel, Logo.
+    title2: zweite, goldene Titelzeile (z. B. „PRO PERSON“); alles darunter rückt dann 50 px tiefer."""
     p = Painter(cfg)
     t = p.t
     img, planes_ = _story_body(sky if sky in BODY else "nacht")
@@ -1016,11 +1017,18 @@ def _frame(cfg, now, title, subtitle, sky="nacht"):
         p.plane(x_, y_, int(44 * sc_), a_, (255, 255, 255))
     _route_marks(p)
     ftt = p.fit(title, "extrabold", 112, W - 2 * PAD)
-    p.d.text((W / 2 + 3, 215 + OFF), title, font=ftt, fill=(0, 0, 0), anchor="mm")
-    p.d.text((W / 2, 212 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    ty = 212 + OFF - (12 if title2 else 0)
+    p.d.text((W / 2 + 3, ty + 3), title, font=ftt, fill=(0, 0, 0), anchor="mm")
+    p.d.text((W / 2, ty), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    dy = 0
+    if title2:
+        f2 = p.font("extrabold", 58)
+        p.d.text((W / 2 + 3, ty + 78 + 3), title2, font=f2, fill=(0, 0, 0), anchor="mm")
+        p.d.text((W / 2, ty + 78), title2, font=f2, fill=GOLD, anchor="mm")
+        dy = 50
     chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
-    p.d.text((W / 2, 292 + OFF - 4), chk, font=p.fit(chk, "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
-    p.d.text((W / 2, 336 + OFF - 6), subtitle, font=p.fit(subtitle, "bold", 27, W - 2 * PAD - 8), fill=(190, 205, 225), anchor="mm")
+    p.d.text((W / 2, 292 + OFF - 4 + dy), chk, font=p.fit(chk, "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
+    p.d.text((W / 2, 336 + OFF - 6 + dy), subtitle, font=p.fit(subtitle, "bold", 27, W - 2 * PAD - 8), fill=(190, 205, 225), anchor="mm")
     return p
 
 
@@ -1111,9 +1119,10 @@ def render_kombis(cfg, snap, now, n=5, min_n=3, max_n=30):
         if len(top) == n:
             break
     p = _frame(cfg, now, "TOP 5 GÜNSTIGSTE KOMBINATIONEN",
-               f"Hin- und Rückflug · {min_n}–{max_n} Nächte · die günstigsten der nächsten {N_MONATE} Monate", sky="gold")
+               f"Hin- und Rückflug · {min_n}–{max_n} Nächte · die günstigsten der nächsten {N_MONATE} Monate", sky="gold",
+               title2="PRO PERSON")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
-    y0, y1, gap = 410, 1688, 14
+    y0, y1, gap = 460, 1688, 14
     h = (y1 - y0 - gap * (n - 1)) / n
     for i, c in enumerate(top):
         _combo_card(p, y0 + i * (h + gap), h, i + 1, c[3], c[4], fpath, pro_person=True)
