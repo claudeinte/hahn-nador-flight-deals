@@ -156,12 +156,13 @@ def render_feed(cfg, best, now, rueck=False):
     price = fmt_price(best.price)
     fp = p.font("extrabold", 200)
     gl = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(gl).text((W / 2, cy0 + 370), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
+    ImageDraw.Draw(gl).text((W / 2, cy0 + 345), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
     base = p.img.convert("RGBA")
     base.alpha_composite(gl.filter(ImageFilter.GaussianBlur(18)))
     p.img = base.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
-    p.d.text((W / 2, cy0 + 370), price, font=fp, fill=(60, 220, 120), anchor="mm")
+    p.d.text((W / 2, cy0 + 345), price, font=fp, fill=(60, 220, 120), anchor="mm")
+    shadow((W / 2, cy0 + 478), "pro Person", p.font("extrabold", 44), (255, 255, 255))   # Nutzerwunsch 23.11.2026
     shadow((W / 2, cy0 + 530), "Basic-Tarif · nur 1 kleine Tasche (40×30×20 cm)", p.font("bold", 28), (220, 230, 242), off=2)
 
     chk = f"Preis bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr – kann sich jederzeit ändern."
@@ -185,7 +186,7 @@ def texts(cfg, best, now, rueck):
         link = f"\n🔗 {booking_link(o, d, best.day)}" if fb else ""
         return f"""{edition_line(now)}
 
-✈️ {head}: {route} schon ab {fmt_price(best.price)}!
+✈️ {head}: {route} schon ab {fmt_price(best.price)} pro Person!
 🕒 Preis bei Ryanair {fmt_checked(now)} – kann sich im Laufe des Tages jederzeit ändern.
 
 {pg['stories_hint'] if fb else pg['instagram_stories_hint']}

@@ -1457,12 +1457,13 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     price = fmt_price(best.price)
     fp = p.font("extrabold", 210)
     glow = Image.new("RGBA", p.img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(glow).text((W / 2, cy0 + 470), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
+    ImageDraw.Draw(glow).text((W / 2, cy0 + 418), price, font=fp, fill=(34, 197, 94, 170), anchor="mm")
     base = p.img.convert("RGBA")
     base.alpha_composite(glow.filter(ImageFilter.GaussianBlur(18)))
     p.img = base.convert("RGB")
     p.d = ImageDraw.Draw(p.img)
-    p.d.text((W / 2, cy0 + 470), price, font=fp, fill=(60, 220, 120), anchor="mm")
+    p.d.text((W / 2, cy0 + 418), price, font=fp, fill=(60, 220, 120), anchor="mm")
+    shadow((W / 2, cy0 + 566), "pro Person", p.font("extrabold", 46), (255, 255, 255))   # Nutzerwunsch 23.11.2026
     shadow((W / 2, cy0 + 620), "Basic-Tarif · nur 1 kleine Tasche (40×30×20 cm)", p.font("bold", 28), (220, 230, 242), off=2)
 
     chk = f"Preis bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
@@ -1598,11 +1599,12 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
         p.d.line((x0 + 96, yy, x0 + 96, yy + 7), fill=(255, 210, 210), width=3)
     p.plane(x0 + 52, (y0 + y1) / 2, 30, -20, (255, 255, 255))
     p.d.text((x0 + 120, (y0 + y1) / 2 + 2), lab, font=fl, fill=(255, 255, 255), anchor="lm")
-    shadow((W / 2, 380), "PREISSTÜRZE", p.font("extrabold", 124), (255, 255, 255))
+    shadow((W / 2, 372), "PREISSTÜRZE", p.font("extrabold", 124), (255, 255, 255))
+    shadow((W / 2, 458), "PRO PERSON", p.font("extrabold", 58), GOLD)          # Nutzerwunsch 23.11.2026
     chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
-    shadow((W / 2, 466), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (240, 236, 250), off=2)
+    shadow((W / 2, 516), chk, p.fit(chk, "bold", 30, W - 2 * PAD), (240, 236, 250), off=2)
     sub = f"Verglichen mit den Preisen {when_long}"
-    shadow((W / 2, 506), sub, p.fit(sub, "bold", 27, W - 2 * PAD), (214, 200, 240), off=2)
+    shadow((W / 2, 554), sub, p.fit(sub, "bold", 27, W - 2 * PAD), (214, 200, 240), off=2)
 
     def route_head(y, label, outb):
         o, d_ = (("Frankfurt-Hahn", "DE"), ("Nador", "MA")) if outb else (("Nador", "MA"), ("Frankfurt-Hahn", "DE"))
@@ -1633,12 +1635,12 @@ def render_preisstuerze(cfg, snap, prev, prev_at, now, min_pct=20.0):
         p.d.rounded_rectangle(box, r, outline=outline, width=5)
 
     n_items = sum(len(x[3]) for x in sections)
-    top, bottom = 550, 1680
+    top, bottom = 594, 1680
     if n_items == 1:                                      # ein Treffer: groß wie die Bestpreis-Story
         label, route, outb, items = sections[0]
         pct, f, old = items[0]
         route_head(612, label, outb)
-        cx0, cy0, cx1, cy1 = 48, 690, W - 48, 1560
+        cx0, cy0, cx1, cy1 = 48, 720, W - 48, 1560
         glass((cx0, cy0, cx1, cy1), GOLD)
         p.d.text((W / 2, cy0 + 90), f"{WOCHENTAGE[f.day.weekday()]}, {f.day:%d.%m.%Y}", font=p.font("extrabold", 62),
                  fill=(255, 255, 255), anchor="mm")
