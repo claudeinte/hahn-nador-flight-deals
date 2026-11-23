@@ -187,7 +187,7 @@ def route_marks_dir(p, rueck):
     p.img = sk.draw_airliner_side(p.img, px, end_y - 6, 220, 0, flip=rueck)   # Rumpfmitte liegt ~6 px unter dem Ankerpunkt
     p.d = ImageDraw.Draw(p.img)
 
-def frame(cfg, now, title, subtitle, theme, seed, richtung=None):
+def frame(cfg, now, title, subtitle, theme, seed, richtung=None, title2=None):
     th = THEMES[theme]
     p = Painter(cfg)
     img, planes = body(th, seed, richtung == "rueck")
@@ -203,11 +203,18 @@ def frame(cfg, now, title, subtitle, theme, seed, richtung=None):
     else:
         route_marks_dir(p, richtung == "rueck")
     ftt = p.fit(title, "extrabold", 112, W - 2 * PAD)
-    p.d.text((W / 2 + 3, 215 + OFF), title, font=ftt, fill=(0, 0, 0), anchor="mm")
-    p.d.text((W / 2, 212 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    ty = 212 + OFF - (12 if title2 else 0)
+    p.d.text((W / 2 + 3, ty + 3), title, font=ftt, fill=(0, 0, 0), anchor="mm")
+    p.d.text((W / 2, ty), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    dy = 0
+    if title2:                                             # zweite, goldene Titelzeile (z. B. „PRO PERSON“)
+        f2 = p.font("extrabold", 58)
+        p.d.text((W / 2 + 3, ty + 81), title2, font=f2, fill=(0, 0, 0), anchor="mm")
+        p.d.text((W / 2, ty + 78), title2, font=f2, fill=GOLD, anchor="mm")
+        dy = 50
     chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
-    p.d.text((W / 2, 292 + OFF - 4), chk, font=p.fit(chk, "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
-    p.d.text((W / 2, 336 + OFF - 6), subtitle, font=p.fit(subtitle, "bold", 27, W - 2 * PAD - 8), fill=(205, 215, 232), anchor="mm")
+    p.d.text((W / 2, 292 + OFF - 4 + dy), chk, font=p.fit(chk, "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
+    p.d.text((W / 2, 336 + OFF - 6 + dy), subtitle, font=p.fit(subtitle, "bold", 27, W - 2 * PAD - 8), fill=(205, 215, 232), anchor="mm")
     return p
 
 
@@ -241,8 +248,8 @@ def flight_line(p, x, y, f, rueck):
     return x + 52 + p.tw(dt, fdt)
 
 
-def cards_area(n, gap=14):
-    y0, y1 = 410, 1688
+def cards_area(n, gap=14, y0=410):
+    y1 = 1688
     return y0, (y1 - y0 - gap * (n - 1)) / n, gap
 
 
@@ -296,9 +303,9 @@ def render_top5(cfg, now, fares, rueck, theme, seed):
     title = "TOP 5 GÜNSTIGSTE RÜCKFLÜGE" if rueck else "TOP 5 GÜNSTIGSTE HINFLÜGE"
     sub = ("Die billigsten Rückflüge Nador → Frankfurt-Hahn" if rueck else
            "Die billigsten Hinflüge Frankfurt-Hahn → Nador") + f" · alle Flüge der nächsten {sk.N_MONATE} Monate verglichen"
-    p = frame(cfg, now, title, sub, theme, seed, "rueck" if rueck else "hin")
+    p = frame(cfg, now, title, sub, theme, seed, "rueck" if rueck else "hin", title2="PRO PERSON")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
-    y0, h, gap = cards_area(5)
+    y0, h, gap = cards_area(5, y0=460)
     for i, f in enumerate(fares[:5]):
         top = y0 + i * (h + gap)
         col = sk.MEDALS[i + 1][1] if i < 3 else (70, 90, 118)

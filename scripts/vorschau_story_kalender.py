@@ -930,7 +930,7 @@ def render_summary(cfg, snap, months, now):
     p.d.text((W / 2, 212 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
     p.d.text((W / 2, 292 + OFF - 4), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
              font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
-    sub = f"Hin- und Rückflug · die günstigsten Preise der nächsten {len(months)} Monate"
+    sub = f"Hin- und Rückflug · die günstigsten Preise pro Person der nächsten {len(months)} Monate"
     p.d.text((W / 2, 336 + OFF - 6), sub, font=p.fit(sub, "bold", 27, W - 2 * PAD - 8),
              fill=(190, 205, 225), anchor="mm")
 
@@ -1091,8 +1091,8 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None, pro_person=False):
         fdt = p.font("bold", 29)
         p.d.text((xt, yy + 14), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
         p.d.text((xt + p.tw(dt, fdt) + 14, yy + 14), fmt_price(f.price), font=p.font("bold", 26), fill=(188, 202, 220), anchor="lm")
-    dy = -14 if pro_person else 0                            # mit „pro Person“: eine Zeile mehr → Preis etwas höher
-    p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12) + dy), fmt_price(tot), font=p.font("extrabold", 58),
+    py = -26 if pro_person else (12 if label else -12)      # mit „pro Person“: eine Zeile mehr → Preis etwas höher
+    p.d.text((W - PAD - 26, top + h / 2 + py), fmt_price(tot), font=p.font("extrabold", 58),
              fill=GOLD if (rank or 9) <= 3 or label else (255, 255, 255), anchor="rm")
     if pro_person:
         p.d.text((W - PAD - 26, top + h / 2 + 32), "pro Person", font=p.font("extrabold", 25), fill=(235, 242, 250), anchor="rm")
@@ -1138,9 +1138,10 @@ def render_dauer(cfg, snap, now):
     today = now.date()
     outs, rets = _future(snap, cfg, cfg.route_out, today), _future(snap, cfg, cfg.route_ret, today)
     spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]
-    p = _frame(cfg, now, "GÜNSTIG NACH DAUER", "Hin- und Rückflug · günstigster Preis für 1, 2, 3 Wochen oder 1 Monat")
+    p = _frame(cfg, now, "GÜNSTIG NACH DAUER", "Hin- und Rückflug · günstigster Preis für 1, 2, 3 Wochen oder 1 Monat",
+               title2="PRO PERSON")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
-    y0, y1, gap = 410, 1688, 16
+    y0, y1, gap = 460, 1688, 16
     h = (y1 - y0 - gap * 3) / 4
     for i, (lab, a_, b_) in enumerate(spans):
         best = min(((o.price + r.price, o.day, o, r) for o in outs for r in rets if a_ <= (r.day - o.day).days <= b_),
@@ -1150,7 +1151,7 @@ def render_dauer(cfg, snap, now):
             p.d.rounded_rectangle((PAD, top, W - PAD, top + h), 22, fill=(20, 36, 62))
             p.d.text((W / 2, top + h / 2), f"{lab}: keine passenden Flüge", font=p.font("bold", 32), fill=(170, 180, 195), anchor="mm")
             continue
-        _combo_card(p, top, h, None, best[2], best[3], fpath, label=f"{lab} ({a_}–{b_} Nächte)")
+        _combo_card(p, top, h, None, best[2], best[3], fpath, label=f"{lab} ({a_}–{b_} Nächte)", pro_person=True)
     _footer(p)
     return p.img
 
@@ -1201,7 +1202,7 @@ def render_summary_feed(cfg, snap, months, now):
     p.d.text((W / 2, 185), title, font=ftt, fill=(255, 255, 255), anchor="mm")
     chk = f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr"
     p.d.text((W / 2, 250), chk, font=p.fit(chk, "bold", 28, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
-    sub = f"Hin- und Rückflug · die günstigsten Preise der nächsten {len(months)} Monate"
+    sub = f"Hin- und Rückflug · die günstigsten Preise pro Person der nächsten {len(months)} Monate"
     p.d.text((W / 2, 288), sub, font=p.fit(sub, "bold", 24, W - 2 * PAD - 8), fill=(190, 205, 225), anchor="mm")
 
     col1, col2 = 330, 700
