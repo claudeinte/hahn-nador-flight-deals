@@ -53,7 +53,7 @@ jobs:
           print("Heute schon komplett veröffentlicht:" , fertig)
           EOF
 
-      - name: Preise abfragen und Story-Bilder erstellen (16–17)
+      - name: Preise abfragen und Story-Bilder erstellen (21–22)
         if: steps.tag.outputs.fertig == 'nein'
         run: python scripts/vorschau_story_kalender.py --alle
 
@@ -81,6 +81,14 @@ jobs:
           mkdir -p public/$D
           python scripts/feed_bestpreis.py --out public/$D
 
+      - name: Feed-Rotation vorbereiten (7-Tage-Kreis, Bilder 4:5 + Texte; nichts wird veröffentlicht)
+        run: |
+          D=${{ steps.tag.outputs.datum }}
+          FERTIG=$(python -c "import json,pathlib,sys; p=pathlib.Path('data/feed_rotation.json'); h=(json.loads(p.read_text()) if p.exists() else {}).get('heute') or {}; print('ja' if h.get('tag')=='$D' and h.get('fertig') else 'nein')")
+          if [ "$FERTIG" = "ja" ]; then echo "Feed heute schon veröffentlicht."; exit 0; fi
+          [ -d output/stories/$D ] || python scripts/vorschau_story_kalender.py --alle
+          python scripts/feed_rotation.py --story-ordner output/stories/$D --out public/$D
+
       - name: Bilder öffentlich bereitstellen (Branch "stories")
         if: inputs.modus == 'veroeffentlichen'
         run: |
@@ -106,7 +114,7 @@ jobs:
           --png-ordner output/stories/${{ steps.tag.outputs.datum }}
           --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
-      - name: Feed-Beiträge veröffentlichen (nur wenn sich der Bestpreis geändert hat; Rückflug 5 Min. später)
+      - name: Feed-Beiträge veröffentlichen (Schritt des 7-Tage-Kreises; 5 Min. zwischen den Beiträgen)
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
@@ -122,6 +130,7 @@ jobs:
           git add data/snapshots/ 2>/dev/null || true
           git add data/stories_veroeffentlicht.json 2>/dev/null || true
           git add data/feed_veroeffentlicht.json 2>/dev/null || true
+          git add data/feed_rotation.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -qm "Stories/Preise $(date +'%Y-%m-%d %H:%M')"
             for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done

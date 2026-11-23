@@ -1,0 +1,10 @@
+{
+ "erklaerung": "Feed-Rotation (7 Tage): 0=#1+#2 günstigster Hin/Rück, 1=#3 Preisstürze (ohne → Schritt 2), 2=#4+#5 Top 5 Hin/Rück, 3=#6+#7+#8 Familie, 4=#9 Top 5 Kombinationen, 5=#10 nach Dauer, 6=#11 Bestpreise pro Monat",
+ "naechster_schritt": 1,
+ "heute": {
+  "tag": "2026-11-23",
+  "schritt": 0,
+  "erledigt": ["guenstigster_hinflug/facebook", "guenstigster_hinflug/instagram", "guenstigster_rueckflug/facebook", "guenstigster_rueckflug/instagram"],
+  "fertig": true
+ }
+}
