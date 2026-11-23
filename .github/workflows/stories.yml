@@ -25,7 +25,7 @@ jobs:
     env:
       PYTHONPATH: src
       TZ: Europe/Berlin
-      ANZAHL: "0"           # Anzahl kommt aus output/stories/<datum>/anzahl.txt (16 oder 17)
+      ANZAHL: "0"           # Anzahl kommt aus output/stories/<datum>/anzahl.txt (21 oder 22)
     steps:
       - uses: actions/checkout@v4
 

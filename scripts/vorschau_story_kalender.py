@@ -1256,8 +1256,8 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
         k = (i + 1) / n
         ld.line((B(u0), B(u1)), fill=(255, 255, 255, int(50 + 205 * k)), width=int(3 + 7 * k))
     u = plane_t + 0.06
-    while u < 0.86:
-        ld.line((B(u), B(min(u + 0.03, 0.86))), fill=(230, 238, 250, 235), width=6)
+    while u < 0.955:                                         # Striche bis in die Pfeilspitze hinein
+        ld.line((B(u), B(min(u + 0.03, 0.955))), fill=(230, 238, 250, 235), width=6)
         u += 0.05
     glow = lay.filter(ImageFilter.GaussianBlur(6))
     base = p.img.convert("RGBA")
@@ -1278,19 +1278,25 @@ def _contrail(p, a, b, apex_y, plane_t=0.5):
     p.d.polygon(pts_, fill=t.green, outline=(255, 255, 255), width=3)
     x, y = B(plane_t)
     qx, qy = B(plane_t + 0.01)
-    p.img = draw_airliner_side(p.img, x, y - 4, 270, math.degrees(math.atan2(qy - y, qx - x)))
+    deg = math.degrees(math.atan2(qy - y, qx - x))
+    flip = deg > 90 or deg < -90                            # Flug nach links (Rückflug): Nase nach links
+    if flip:
+        deg = deg - 180 if deg > 0 else deg + 180
+    p.img = draw_airliner_side(p.img, x, y - 4, 270, deg, flip=flip)
     p.d = ImageDraw.Draw(p.img)
 
 
 def render_bestangebot(cfg, snap, now, rueck=False):
     """Blickfang-Story: günstigster Hinflug (Frankfurt-Hahn → Nador) bzw. mit rueck=True günstigster Rückflug
-    (Nador → Frankfurt-Hahn) in den nächsten Monaten. Abflugort immer links, Ziel rechts mit Pfeil."""
+    (Nador → Frankfurt-Hahn) in den nächsten Monaten. Frankfurt-Hahn immer links, Nador immer rechts;
+    beim Rückflug zeigen Flugzeug und Pfeil nach links (Nutzerwunsch 23.11.2026)."""
     from flightdeals.render.photo_alert import _cover, _photo
     today = now.date()
     route = cfg.route_ret if rueck else cfg.route_out
     outs = [f for f in snap.fares(route) if f.day >= today]
-    src_city, dst_city = ("Nador", "Frankfurt-Hahn") if rueck else ("Frankfurt-Hahn", "Nador")
-    src_flag, dst_flag = ("MA", "DE") if rueck else ("DE", "MA")
+    left_city, right_city = "Frankfurt-Hahn", "Nador"         # Seiten fest: links Frankfurt-Hahn, rechts Nador
+    left_flag, right_flag = "DE", "MA"
+    src_city, dst_city = ("Nador", "Frankfurt-Hahn") if rueck else ("Frankfurt-Hahn", "Nador")   # echte Flugrichtung
     best = min(outs, key=lambda f: (f.price, f.day))
     p = Painter(cfg)
     t = p.t
@@ -1319,7 +1325,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     bg.alpha_composite(sky, (0, 0))
     fra = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H - HOR + 300, 0.55, 0.30).convert("RGBA")
     ndr = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H - HOR + 300, 0.62, 0.42).convert("RGBA")
-    left, right = (ndr, fra) if rueck else (fra, ndr)
+    left, right = fra, ndr
     for img_, x_, side in ((left, 0, "l"), (right, W - right.width, "r")):
         m = Image.new("L", img_.size, 255)
         md = ImageDraw.Draw(m)
@@ -1352,7 +1358,9 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     for yy in range(HOR - 100, H):
         od.line((0, yy, W, yy), fill=(6, 10, 24, int(min(120, max(0, (yy - HOR - 200) * 0.12)))))
     bg.alpha_composite(ov)
-    planes_ = [(170, 600, -16, 1.0), (930, 300, 18, 0.8), (880, 660, -10, 0.6), (120, 1780, 10, 0.9), (960, 1640, -14, 0.8)]
+    planes_ = [(170, 600, -16, 1.0), (930, 300, 18, 0.8), (960, 560, -10, 0.55), (120, 1780, 10, 0.9), (960, 1640, -14, 0.8)]
+    if rueck:                                                 # Rückflug: Deko-Flugzeuge fliegen nach links (gespiegelt)
+        planes_ = [(W - x, y, 180 - ang, sc) for x, y, ang, sc in planes_]
     pl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     pld = ImageDraw.Draw(pl)
     for x, y, ang, sc in planes_:
@@ -1396,13 +1404,16 @@ def render_bestangebot(cfg, snap, now, rueck=False):
 
     # Flugbogen mit Städten
     ya = 700
-    _contrail(p, (150, ya), (930, ya), 540, 0.5)
+    if rueck:
+        _contrail(p, (930, ya), (150, ya), 540, 0.5)        # Nador (rechts) → Frankfurt-Hahn (links)
+    else:
+        _contrail(p, (150, ya), (930, ya), 540, 0.5)
     fcity = p.font("extrabold", 40)
-    p.flag(src_flag, 56, ya + 34, 30)
-    shadow((116, ya + 50), src_city, fcity, (255, 255, 255), anchor="lm")
-    tw_ = p.tw(dst_city, fcity)
-    shadow((W - 56 - 52 - tw_, ya + 50), dst_city, fcity, (255, 255, 255), anchor="lm")
-    p.flag(dst_flag, W - 56 - 42, ya + 34, 30)
+    p.flag(left_flag, 56, ya + 34, 30)
+    shadow((116, ya + 50), left_city, fcity, (255, 255, 255), anchor="lm")
+    tw_ = p.tw(right_city, fcity)
+    shadow((W - 56 - 52 - tw_, ya + 50), right_city, fcity, (255, 255, 255), anchor="lm")
+    p.flag(right_flag, W - 56 - 42, ya + 34, 30)
 
     # Glas-Karte mit dem Angebot
     cx0, cy0, cx1, cy1 = 48, 830, W - 48, 1520
@@ -1414,7 +1425,7 @@ def render_bestangebot(cfg, snap, now, rueck=False):
     p.d = ImageDraw.Draw(p.img)
     p.d.rounded_rectangle((cx0, cy0, cx1, cy1), 36, outline=GOLD, width=5)
     p.d.ellipse((W / 2 - 40, cy0 + 34, W / 2 + 40, cy0 + 114), fill=t.accent)
-    p.plane(W / 2, cy0 + 74, 34, -18, (255, 255, 255))
+    p.plane(W / 2, cy0 + 74, 34, 198 if rueck else -18, (255, 255, 255))
     p.d.text((W / 2 + 2, cy0 + 152), "RÜCKFLUG · EINFACHE STRECKE, PRO PERSON" if rueck else "HINFLUG · EINFACHE STRECKE, PRO PERSON", font=p.font("extrabold", 30), fill=(0, 0, 0), anchor="mm")
     p.d.text((W / 2, cy0 + 150), "RÜCKFLUG · EINFACHE STRECKE, PRO PERSON" if rueck else "HINFLUG · EINFACHE STRECKE, PRO PERSON", font=p.font("extrabold", 30), fill=(200, 214, 232), anchor="mm")
     shadow((W / 2, cy0 + 222), f"{WOCHENTAGE[best.day.weekday()]}, {best.day:%d.%m.%Y}", p.font("extrabold", 58), (255, 255, 255))
@@ -1683,13 +1694,17 @@ def main_alle(testdaten=False):
     out = PROJ / "output" / "stories" / now.strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
     pv_w, pat_w = week_ago_prices(now.date())
-    # Reihenfolge (vom Nutzer freigegeben 22.11.2026): Bestpreis Hin, Bestpreis Rück, Preisstürze (nur wenn vorhanden),
+    # Reihenfolge (vom Nutzer freigegeben 23.11.2026, 22 Stories): Bestpreis Hin, Bestpreis Rück, Preisstürze
+    # (nur wenn vorhanden), Top 5 günstigste Hin-/Rückflüge, Familie Hin / Rück / Hin & Zurück (2–6 Personen),
     # Top 5 Kombinationen, Günstig nach Dauer, Bestpreise pro Monat, danach die Monatskalender
+    import story_neu
+    story_neu.setup(sys.modules[__name__])
     seq = [("guenstigster_hinflug", render_bestangebot(cfg, snap, now)),
            ("guenstigster_rueckflug", render_bestangebot(cfg, snap, now, rueck=True))]
     ps = render_preisstuerze(cfg, snap, pv_w, pat_w, now)
     if ps is not None:
         seq.append(("preisstuerze", ps))
+    seq += story_neu.render_neue(cfg, snap, now)
     seq += [("top5_kombinationen", render_kombis(cfg, snap, now)),
             ("nach_dauer", render_dauer(cfg, snap, now)),
             ("bestpreise_pro_monat", render_summary(cfg, snap, months, now))]
@@ -1701,7 +1716,7 @@ def main_alle(testdaten=False):
         im.save(out / f"{name}.png")
         imgs.append(im)
     (out / "anzahl.txt").write_text(str(len(seq)))
-    # Übersichtsblatt aller 10 Stories
+    # Übersichtsblatt aller Stories
     cols = 6
     rows_ = (len(imgs) + cols - 1) // cols
     sheet = Image.new("RGB", (cols * 228 + 12, rows_ * 396 + 12), (30, 30, 34))

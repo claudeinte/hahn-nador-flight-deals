@@ -33,8 +33,9 @@ def render_feed(cfg, best, now, rueck=False):
     t = p.t
     ph = cfg["photos"]
     pd_ = PROJ / "assets" / "photos"
-    src_city, dst_city = ("Nador", "Frankfurt-Hahn") if rueck else ("Frankfurt-Hahn", "Nador")
-    src_flag, dst_flag = ("MA", "DE") if rueck else ("DE", "MA")
+    src_city, dst_city = ("Nador", "Frankfurt-Hahn") if rueck else ("Frankfurt-Hahn", "Nador")   # echte Flugrichtung
+    # Seiten fest wie in den Stories: links Frankfurt-Hahn, rechts Nador; beim Rückflug zeigt alles nach links
+    left_city, right_city, left_flag, right_flag = "Frankfurt-Hahn", "Nador", "DE", "MA"
 
     # Himmel (Abend) + Skylines (Abflugort links, Ziel rechts) + Flugzeuge
     HOR = 470
@@ -59,7 +60,7 @@ def render_feed(cfg, best, now, rueck=False):
     bg.alpha_composite(sky, (0, 0))
     fra = _cover(_photo(str(pd_ / ph["origin_file"])), W // 2 + 80, H - HOR + 260, 0.55, 0.30).convert("RGBA")
     ndr = _cover(_photo(str(pd_ / ph["destination_file"])), W // 2 + 80, H - HOR + 260, 0.62, 0.42).convert("RGBA")
-    left, right = (ndr, fra) if rueck else (fra, ndr)
+    left, right = fra, ndr
     for img_, x_, side in ((left, 0, "l"), (right, W - right.width, "r")):
         m = Image.new("L", img_.size, 255)
         md = ImageDraw.Draw(m)
@@ -85,6 +86,8 @@ def render_feed(cfg, best, now, rueck=False):
         od.line((0, yy, W, yy), fill=(6, 10, 24, int(min(130, max(0, (yy - HOR - 120) * 0.16)))))
     bg.alpha_composite(ov)
     planes_ = [(90, 370, -12, 0.6), (1010, 360, 12, 0.6)]
+    if rueck:                                                  # Rückflug: Deko-Flugzeuge fliegen nach links
+        planes_ = [(W - x, y, 180 - ang, sc) for x, y, ang, sc in planes_]
     pl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     pld = ImageDraw.Draw(pl)
     for x, y, ang, sc in planes_:
@@ -126,13 +129,16 @@ def render_feed(cfg, best, now, rueck=False):
 
     # Flugbogen mit Kondensstreifen, realistischem Flugzeug und Pfeil
     ya = 450
-    v._contrail(p, (150, ya), (930, ya), 300, 0.5)
+    if rueck:
+        v._contrail(p, (930, ya), (150, ya), 300, 0.5)         # Nador (rechts) → Frankfurt-Hahn (links)
+    else:
+        v._contrail(p, (150, ya), (930, ya), 300, 0.5)
     fcity = p.font("extrabold", 38)
-    p.flag(src_flag, 50, ya + 30, 30)
-    shadow((110, ya + 46), src_city, fcity, (255, 255, 255), anchor="lm")
-    tw_ = p.tw(dst_city, fcity)
-    shadow((W - 50 - 52 - tw_, ya + 46), dst_city, fcity, (255, 255, 255), anchor="lm")
-    p.flag(dst_flag, W - 50 - 42, ya + 30, 30)
+    p.flag(left_flag, 50, ya + 30, 30)
+    shadow((110, ya + 46), left_city, fcity, (255, 255, 255), anchor="lm")
+    tw_ = p.tw(right_city, fcity)
+    shadow((W - 50 - 52 - tw_, ya + 46), right_city, fcity, (255, 255, 255), anchor="lm")
+    p.flag(right_flag, W - 50 - 42, ya + 30, 30)
 
     # Glas-Karte
     cx0, cy0, cx1, cy1 = 48, 560, W - 48, 1150
