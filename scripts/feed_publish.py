@@ -1,5 +1,5 @@
 """Veröffentlicht die Feed-Beiträge (4:5) des heutigen Rotations-Schritts auf Facebook und Instagram
-(Plan: <ordner>/feed_plan.json aus scripts/feed_rotation.py; Kreis siehe dort). Zwischen zwei Beiträgen 5 Minuten Pause.
+(Plan: <ordner>/feed_plan.json aus scripts/feed_rotation.py; Kreis siehe dort). Zwischen zwei Beiträgen 1 Minute Pause.
 Stand/Protokoll: data/feed_rotation.json – pro Tag wird festgehalten, welcher Beitrag auf welcher Plattform schon
 veröffentlicht ist (kein Doppelpost bei erneutem Lauf). Erst wenn alle Beiträge des Tages draußen sind, rückt der
 Kreis einen Schritt weiter. Nur offizielle Meta Graph API: FB  POST /{page}/photos (source + message);
@@ -47,7 +47,7 @@ def main():
     ap.add_argument("--ordner", required=True)
     ap.add_argument("--base-url", default=os.environ.get("STORY_BASE_URL", ""))
     ap.add_argument("--modus", choices=["test", "veroeffentlichen"], default="test")
-    ap.add_argument("--pause", type=int, default=300, help="Sekunden zwischen zwei Beiträgen")
+    ap.add_argument("--pause", type=int, default=60, help="Sekunden zwischen zwei Beiträgen (Nutzerwunsch: 1 Minute)")
     a = ap.parse_args()
     d = Path(a.ordner)
     if not (d / "feed_plan.json").exists():
@@ -72,7 +72,7 @@ def main():
             if a.modus == "test":
                 print(f"TEST {k}: würde veröffentlichen ({x['datei']})")
                 continue
-            if letzter_post and letzter_post != x["name"]:      # 5 Min. Pause zwischen verschiedenen Beiträgen
+            if letzter_post and letzter_post != x["name"]:      # 1 Min. Pause zwischen verschiedenen Beiträgen
                 print(f"Warte {a.pause} s …")
                 time.sleep(a.pause)
             text = (d / f"{x['datei']}_{plat}.txt").read_text(encoding="utf-8")

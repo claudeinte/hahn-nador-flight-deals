@@ -1042,8 +1042,9 @@ def _rank_badge(p, cx, cy, r, rank, fpath):
         p.d.text((cx, cy + 1), str(rank), font=p.font("extrabold", int(r * 1.3)), fill=(235, 242, 250), anchor="mm")
 
 
-def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
-    """Karte: Hinflug + Rückflug + Gesamtpreis. label = z. B. „1 Woche“ statt Medaille."""
+def _combo_card(p, top, h, rank, o, r_, fpath, label=None, pro_person=False):
+    """Karte: Hinflug + Rückflug + Gesamtpreis. label = z. B. „1 Woche“ statt Medaille.
+    pro_person=True: unter dem Preis steht „pro Person“ (Nutzerwunsch 23.11.2026 für Top 5 Kombinationen)."""
     t = p.t
     tot = o.price + r_.price
     nights = (r_.day - o.day).days
@@ -1079,10 +1080,16 @@ def _combo_card(p, top, h, rank, o, r_, fpath, label=None):
         fdt = p.font("bold", 29)
         p.d.text((xt, yy + 14), dt, font=fdt, fill=(235, 242, 250), anchor="lm")
         p.d.text((xt + p.tw(dt, fdt) + 14, yy + 14), fmt_price(f.price), font=p.font("bold", 26), fill=(188, 202, 220), anchor="lm")
-    p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12)), fmt_price(tot), font=p.font("extrabold", 58),
+    dy = -14 if pro_person else 0                            # mit „pro Person“: eine Zeile mehr → Preis etwas höher
+    p.d.text((W - PAD - 26, top + h / 2 + (12 if label else -12) + dy), fmt_price(tot), font=p.font("extrabold", 58),
              fill=GOLD if (rank or 9) <= 3 or label else (255, 255, 255), anchor="rm")
-    p.d.text((W - PAD - 26, top + h / 2 + (60 if label else 36)), f"hin & zurück · {nights} Nächte",
-             font=p.font("bold", 23), fill=(190, 205, 225), anchor="rm")
+    if pro_person:
+        p.d.text((W - PAD - 26, top + h / 2 + 32), "pro Person", font=p.font("extrabold", 25), fill=(235, 242, 250), anchor="rm")
+        p.d.text((W - PAD - 26, top + h / 2 + 62), f"hin & zurück · {nights} Nächte", font=p.font("bold", 23),
+                 fill=(190, 205, 225), anchor="rm")
+    else:
+        p.d.text((W - PAD - 26, top + h / 2 + (60 if label else 36)), f"hin & zurück · {nights} Nächte",
+                 font=p.font("bold", 23), fill=(190, 205, 225), anchor="rm")
 
 
 def _future(snap, cfg, route, today):
@@ -1103,13 +1110,13 @@ def render_kombis(cfg, snap, now, n=5, min_n=3, max_n=30):
         top.append(c)
         if len(top) == n:
             break
-    p = _frame(cfg, now, "TOP 5 KOMBINATIONEN",
+    p = _frame(cfg, now, "TOP 5 GÜNSTIGSTE KOMBINATIONEN",
                f"Hin- und Rückflug · {min_n}–{max_n} Nächte · die günstigsten der nächsten {N_MONATE} Monate", sky="gold")
     fpath = str(cfg.fonts_dir / "Inter-ExtraBold.ttf")
     y0, y1, gap = 410, 1688, 14
     h = (y1 - y0 - gap * (n - 1)) / n
     for i, c in enumerate(top):
-        _combo_card(p, y0 + i * (h + gap), h, i + 1, c[3], c[4], fpath)
+        _combo_card(p, y0 + i * (h + gap), h, i + 1, c[3], c[4], fpath, pro_person=True)
     _footer(p)
     return p.img
 
