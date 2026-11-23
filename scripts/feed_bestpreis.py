@@ -183,7 +183,8 @@ def texts(cfg, best, now, rueck):
 
     def build(platform):
         fb = platform == "facebook"
-        link = f"\n🔗 {booking_link(o, d, best.day)}" if fb else ""
+        import feed_rotation                                        # kurze Adresse für Instagram (2200-Zeichen-Grenze)
+        link = f"\n🔗 {booking_link(o, d, best.day) if fb else feed_rotation.kurz_link(booking_link(o, d, best.day))}"
         return f"""{edition_line(now)}
 
 ✈️ {head}: {route} schon ab {fmt_price(best.price)} pro Person!

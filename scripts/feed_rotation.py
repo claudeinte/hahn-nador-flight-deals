@@ -11,7 +11,7 @@ Feed-Beiträge (Facebook + Instagram, 4:5) in einem 7-Tage-Kreis. Die Nummern si
     danach wieder Tag 1.
 
 Dieses Skript veröffentlicht NICHTS: es wählt den heutigen Schritt (Stand in data/feed_rotation.json),
-erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook mit Ryanair-Links, Instagram ohne Links) im Ordner --out
+erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook und Instagram mit Ryanair-Link zu jedem Angebot) im Ordner --out
 und schreibt feed_plan.json. Veröffentlicht wird mit scripts/feed_publish.py.
 Preise = derselbe Preisstand wie die Stories (letzter Stand in data/snapshots/).
 
@@ -72,16 +72,37 @@ def feed_bild(story_png):
     return bg
 
 
+def kurz_link(url):
+    """Kurze Ryanair-Adresse für Instagram (max. 2200 Zeichen pro Text) – getestet 23.11.2026: öffnet denselben
+    Flug (einfach) bzw. dieselbe Hin-/Rückflug-Suche wie der lange Link."""
+    from urllib.parse import parse_qs, urlsplit
+    q = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+    out = f"https://www.ryanair.com/de/de/trip/flights/select?adults=1&dateOut={q['dateOut']}"
+    if q.get("isReturn") == "true" and q.get("dateIn"):
+        out += f"&dateIn={q['dateIn']}&isReturn=true"
+    return out + f"&originIata={q['originIata']}&destinationIata={q['destinationIata']}"
+
+
+def _n(x):
+    return len(x.encode("utf-16-le")) // 2                 # Instagram zählt wie UTF-16 (Emojis = 2)
+
+
 def ig_kurz(t, limit=2190):
-    def n(x):
-        return len(x.encode("utf-16-le")) // 2
-    while n(t) > limit:
+    """Instagram erlaubt max. 2200 Zeichen: zuerst Hashtags kürzen (mind. 5 bleiben), dann – nur wenn nötig –
+    Links von unten weglassen (die nächsten Termine behalten ihren Link)."""
+    while _n(t) > limit:
         head, tags = t.rstrip("\n").rsplit("\n", 1)
         parts = tags.split()
-        if len(parts) <= 6:
+        if len(parts) <= 5:
             break
         t = head + "\n" + " ".join(parts[:-1]) + "\n"
-    return t
+    lines_ = t.split("\n")
+    while _n("\n".join(lines_)) > limit:
+        idx = [i for i, ln in enumerate(lines_) if ln.startswith("🔗 ")]
+        if not idx:
+            break
+        del lines_[idx[-1]]
+    return "\n".join(lines_)
 
 
 def text(cfg, now, hook, body_fb, body_ig, platform):
@@ -110,13 +131,16 @@ def text(cfg, now, hook, body_fb, body_ig, platform):
 
 
 def lines(rows):
-    """rows: Liste von (Textzeile, Link oder None) → (Facebook-Text mit Links, Instagram-Text ohne)."""
+    """rows: Liste von (Textzeile, Link oder None) → (Facebook-Text, Instagram-Text) – beide mit dem Link zu
+    jedem Angebot (Instagram mit kurzer Adresse; dort sind Links im Text nicht anklickbar, aber kopierbar)."""
     fb, ig = [], []
-    for ln, link in rows:
+    for row in rows:
+        ln, link = row[0], row[1]
         fb.append(ln)
-        ig.append(ln)
+        ig.append(row[2] if len(row) > 2 else ln)            # optional kürzere Zeile nur für Instagram
         if link:
             fb.append(f"🔗 {link}")
+            ig.append(f"🔗 {kurz_link(link)}")
     return "\n".join(fb), "\n".join(ig)
 
 
@@ -183,7 +207,8 @@ def inhalt(name, cfg, snap, now):
             rows.append((f"{MEDAL[i]} {fmt_price(tot)}{pp} · {(r_.day - o_.day).days} Nächte", None))
             rows.append((f"   🛫 {tag(o_.day, True)} {o_.departure} Uhr ({fmt_price(o_.price)}) · "
                          f"🛬 {tag(r_.day, True)} {r_.departure} Uhr ({fmt_price(r_.price)})",
-                         round_trip_link(O, D, o_.day, r_.day)))
+                         round_trip_link(O, D, o_.day, r_.day),
+                         f"   🛫 {tag(o_.day, True)} {o_.departure} · 🛬 {tag(r_.day, True)} {r_.departure}"))
         return hook, rows
     if name == "nach_dauer":
         spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]
