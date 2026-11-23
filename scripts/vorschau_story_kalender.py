@@ -926,12 +926,16 @@ def render_summary(cfg, snap, months, now):
 
     title = "BESTPREISE PRO MONAT"
     ftt = p.fit(title, "extrabold", 112, W - 2 * PAD)
-    p.d.text((W / 2 + 3, 215 + OFF), title, font=ftt, fill=(0, 0, 0), anchor="mm")
-    p.d.text((W / 2, 212 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
-    p.d.text((W / 2, 292 + OFF - 4), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
+    DY = 50                                                  # Platz für die goldene Zeile „PRO PERSON“ (Nutzerwunsch 23.11.2026)
+    p.d.text((W / 2 + 3, 203 + OFF), title, font=ftt, fill=(0, 0, 0), anchor="mm")
+    p.d.text((W / 2, 200 + OFF), title, font=ftt, fill=(255, 255, 255), anchor="mm")
+    f2 = p.font("extrabold", 58)
+    p.d.text((W / 2 + 3, 281 + OFF), "PRO PERSON", font=f2, fill=(0, 0, 0), anchor="mm")
+    p.d.text((W / 2, 278 + OFF), "PRO PERSON", font=f2, fill=GOLD, anchor="mm")
+    p.d.text((W / 2, 292 + OFF - 4 + DY), f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr",
              font=p.fit(f"Preise bei Ryanair geprüft: {WOCHENTAGE[now.weekday()]}, {now:%d.%m.%Y} · {now:%H:%M} Uhr", "bold", 30, W - 2 * PAD - 8), fill=(232, 238, 246), anchor="mm")
-    sub = f"Hin- und Rückflug · die günstigsten Preise pro Person der nächsten {len(months)} Monate"
-    p.d.text((W / 2, 336 + OFF - 6), sub, font=p.fit(sub, "bold", 27, W - 2 * PAD - 8),
+    sub = f"Hin- und Rückflug · die günstigsten Preise der nächsten {len(months)} Monate"
+    p.d.text((W / 2, 336 + OFF - 6 + DY), sub, font=p.fit(sub, "bold", 27, W - 2 * PAD - 8),
              fill=(190, 205, 225), anchor="mm")
 
     rows = []
@@ -947,7 +951,7 @@ def render_summary(cfg, snap, months, now):
 
     # Spaltenköpfe
     col1, col2 = 330, 700
-    hy = 414
+    hy = 414 + DY
     for x_, lab, rt, outb in ((col1, "HINFLUG", "Frankfurt-Hahn → Nador", True), (col2, "RÜCKFLUG", "Nador → Frankfurt-Hahn", False)):
         p.d.ellipse((x_, hy - 21, x_ + 42, hy + 21), fill=t.accent)
         p.plane(x_ + 21, hy, 17, -18 if outb else 198, (255, 255, 255))
@@ -965,13 +969,13 @@ def render_summary(cfg, snap, months, now):
     fl = p.font("bold", 24)
     widths = [30 + p.tw(lab, fl) for _, lab in BANDS]
     gap = (W - 2 * PAD - 12 - sum(widths)) / (len(BANDS) - 1)
-    x, ly2 = PAD + 6, 470
+    x, ly2 = PAD + 6, 470 + DY
     for (col, lab), w_ in zip(BANDS, widths):
         p.d.ellipse((x, ly2 - 11, x + 22, ly2 + 11), fill=col)
         p.d.text((x + 30, ly2), lab, font=fl, fill=col, anchor="lm")
         x += w_ + gap
 
-    top, bottom = 494, 1690
+    top, bottom = 494 + DY, 1690
     n = len(rows)
     gp = 6 if n > 9 else 8
     rh = (bottom - top - gp * (n - 1)) / n
