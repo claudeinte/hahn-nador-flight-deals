@@ -876,12 +876,15 @@ def _route_marks(p, style=None):
         heads += [arrowhead(up, 0.995, 0.93, t.green), arrowhead(lambda u: dn(1 - u), 0.995, 0.93, t.accent)]
     else:
         B = curve(58, 1)
+        u_tail = 0.5 - 100 / (a1 - a0)                       # Heck / Nase des Flugzeugs (220 px lang) auf dem Bogen
+        u_nose = 0.5 + 100 / (a1 - a0)
         if style == "doppelpfeil":
-            dashes(B, 0.06, 0.32); dashes(B, 0.68, 0.94)
+            dashes(B, 0.06, u_tail); dashes(B, u_nose, 0.94)
             heads += [arrowhead(B, 0.995, 0.93, t.green), arrowhead(lambda u: B(1 - u), 0.995, 0.93, t.accent)]
         else:
-            trail(B, 0, 0.5); dashes(B, 0.8, 0.96)
-        planes.append((B(0.5), 0, 220))
+            trail(B, 0, u_tail); dashes(B, u_nose, 0.96)
+        # Flugzeug so tief setzen, dass Heck und Nase genau auf der Linie liegen (Rumpfmitte ≈ 6 px unter dem Anker)
+        planes.append(((B(0.5)[0], B(u_tail)[1] - 2), 0, 220))
     base = p.img.convert("RGBA")
     base.alpha_composite(lay.filter(ImageFilter.GaussianBlur(4)))
     base.alpha_composite(lay)
