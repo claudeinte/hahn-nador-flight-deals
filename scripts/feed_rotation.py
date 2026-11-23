@@ -11,7 +11,7 @@ Feed-Beiträge (Facebook + Instagram, 4:5) in einem 7-Tage-Kreis. Die Nummern si
     danach wieder Tag 1.
 
 Dieses Skript veröffentlicht NICHTS: es wählt den heutigen Schritt (Stand in data/feed_rotation.json),
-erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook und Instagram mit Ryanair-Link zu jedem Angebot) im Ordner --out
+erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook mit Ryanair-Link zu jedem Angebot, Instagram ohne Links, dafür alle 30 Hashtags) im Ordner --out
 und schreibt feed_plan.json. Veröffentlicht wird mit scripts/feed_publish.py.
 Preise = derselbe Preisstand wie die Stories (letzter Stand in data/snapshots/).
 
@@ -88,8 +88,8 @@ def _n(x):
 
 
 def ig_kurz(t, limit=2190):
-    """Instagram erlaubt max. 2200 Zeichen: zuerst Hashtags kürzen (mind. 5 bleiben), dann – nur wenn nötig –
-    Links von unten weglassen (die nächsten Termine behalten ihren Link)."""
+    """Instagram erlaubt max. 2200 Zeichen und 30 Hashtags: nur falls der Text zu lang ist, Hashtags von hinten
+    kürzen (mind. 5 bleiben)."""
     while _n(t) > limit:
         head, tags = t.rstrip("\n").rsplit("\n", 1)
         parts = tags.split()
@@ -131,16 +131,15 @@ def text(cfg, now, hook, body_fb, body_ig, platform):
 
 
 def lines(rows):
-    """rows: Liste von (Textzeile, Link oder None) → (Facebook-Text, Instagram-Text) – beide mit dem Link zu
-    jedem Angebot (Instagram mit kurzer Adresse; dort sind Links im Text nicht anklickbar, aber kopierbar)."""
+    """rows: Liste von (Textzeile, Link oder None) → (Facebook-Text mit Link zu jedem Angebot, Instagram-Text ohne
+    Links – nur Tag/Uhrzeit/Preis; Nutzerwunsch 23.11.2026, weil Instagram Links im Text nicht anklickbar macht)."""
     fb, ig = [], []
     for row in rows:
         ln, link = row[0], row[1]
         fb.append(ln)
-        ig.append(row[2] if len(row) > 2 else ln)            # optional kürzere Zeile nur für Instagram
-        if link:
+        ig.append(ln)
+        if link:                                           # Link nur auf Facebook – auf Instagram nicht anklickbar
             fb.append(f"🔗 {link}")
-            ig.append(f"🔗 {kurz_link(link)}")
     return "\n".join(fb), "\n".join(ig)
 
 
@@ -207,8 +206,7 @@ def inhalt(name, cfg, snap, now):
             rows.append((f"{MEDAL[i]} {fmt_price(tot)}{pp} · {(r_.day - o_.day).days} Nächte", None))
             rows.append((f"   🛫 {tag(o_.day, True)} {o_.departure} Uhr ({fmt_price(o_.price)}) · "
                          f"🛬 {tag(r_.day, True)} {r_.departure} Uhr ({fmt_price(r_.price)})",
-                         round_trip_link(O, D, o_.day, r_.day),
-                         f"   🛫 {tag(o_.day, True)} {o_.departure} · 🛬 {tag(r_.day, True)} {r_.departure}"))
+                         round_trip_link(O, D, o_.day, r_.day)))
         return hook, rows
     if name == "nach_dauer":
         spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]

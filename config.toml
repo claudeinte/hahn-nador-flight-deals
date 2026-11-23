@@ -15,7 +15,7 @@ like_cta = "👍 Wenn dir unsere Flugtipps gefallen, freuen wir uns über ein Li
 # Steht in jedem Beitrag direkt nach der Zeile "🕒 Preise … geprüft"
 stories_hint = "📲 Du suchst weitere Flugtermine und Preise? In unseren Facebook-Stories findest du täglich eine aktuelle Übersicht für beide Richtungen."
 # Instagram: eigene Hashtags (max. 30) und Stories-Hinweis ohne "Facebook"
-instagram_hashtags = "#Nador #NadorCity #Rif #Arif #الناظور #الريف #FrankfurtHahn #Hahn #Ryanair #Marokko #Maroc #Morocco #المغرب #MRE #MarokkanerInDeutschland #مغاربة_ألمانيا #Heimaturlaub #FlügeNachMarokko #Flugangebote #Flugdeals #BilligFliegen #Schnäppchen #Reisen #Urlaub #Marokkoreise"
+instagram_hashtags = "#Nador #NadorCity #Rif #Arif #الناظور #الريف #FrankfurtHahn #Hahn #Ryanair #Marokko #Maroc #Morocco #المغرب #MRE #MarokkanerInDeutschland #مغاربة_ألمانيا #Heimaturlaub #FlügeNachMarokko #Flugangebote #Flugdeals #BilligFliegen #Schnäppchen #Reisen #Urlaub #Marokkoreise #FlughafenHahn #Billigflüge #Flugticket #Marruecos #NadorMaroc"
 instagram_stories_hint = "📲 Du suchst weitere Flugtermine und Preise? In unseren Instagram-Stories findest du täglich eine aktuelle Übersicht für beide Richtungen."
 
 [route]
