@@ -11,7 +11,7 @@ Feed-Beiträge (Facebook + Instagram, 4:5) in einem 7-Tage-Kreis. Die Nummern si
     danach wieder Tag 1.
 
 Dieses Skript veröffentlicht NICHTS: es wählt den heutigen Schritt (Stand in data/feed_rotation.json),
-erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook mit Ryanair-Link zu jedem Angebot, Instagram ohne Links, dafür alle 30 Hashtags) im Ordner --out
+erstellt Bilder (4:5, PNG + JPEG) und Texte (Facebook und Instagram mit Ryanair-Link zu jedem Angebot; nur #11 auf Instagram ohne Links) im Ordner --out
 und schreibt feed_plan.json. Veröffentlicht wird mit scripts/feed_publish.py.
 Preise = derselbe Preisstand wie die Stories (letzter Stand in data/snapshots/).
 
@@ -88,8 +88,8 @@ def _n(x):
 
 
 def ig_kurz(t, limit=2190):
-    """Instagram erlaubt max. 2200 Zeichen und 30 Hashtags: nur falls der Text zu lang ist, Hashtags von hinten
-    kürzen (mind. 5 bleiben)."""
+    """Instagram erlaubt max. 2200 Zeichen und 30 Hashtags: so viele Hashtags wie möglich; nur falls der Text zu lang
+    ist, Hashtags von hinten kürzen (mind. 5 bleiben), notfalls Links von unten weglassen."""
     while _n(t) > limit:
         head, tags = t.rstrip("\n").rsplit("\n", 1)
         parts = tags.split()
@@ -130,16 +130,19 @@ def text(cfg, now, hook, body_fb, body_ig, platform):
     return t if fb else ig_kurz(t)
 
 
-def lines(rows):
-    """rows: Liste von (Textzeile, Link oder None) → (Facebook-Text mit Link zu jedem Angebot, Instagram-Text ohne
-    Links – nur Tag/Uhrzeit/Preis; Nutzerwunsch 23.11.2026, weil Instagram Links im Text nicht anklickbar macht)."""
+def lines(rows, ig_links=True):
+    """rows: Liste von (Textzeile, Link oder None[, kürzere Instagram-Zeile]) → (Facebook-Text, Instagram-Text).
+    Beide mit Link zu jedem Angebot (Instagram mit kurzer Adresse). Nutzerwunsch 23.11.2026: nur bei
+    „Bestpreise pro Monat“ (22 Angebote, passt nicht in 2200 Zeichen) steht auf Instagram nur Tag/Uhrzeit ohne Link."""
     fb, ig = [], []
     for row in rows:
         ln, link = row[0], row[1]
         fb.append(ln)
-        ig.append(ln)
-        if link:                                           # Link nur auf Facebook – auf Instagram nicht anklickbar
+        ig.append(row[2] if len(row) > 2 and ig_links else ln)
+        if link:
             fb.append(f"🔗 {link}")
+            if ig_links:
+                ig.append(f"🔗 {kurz_link(link)}")
     return "\n".join(fb), "\n".join(ig)
 
 
@@ -206,7 +209,8 @@ def inhalt(name, cfg, snap, now):
             rows.append((f"{MEDAL[i]} {fmt_price(tot)}{pp} · {(r_.day - o_.day).days} Nächte", None))
             rows.append((f"   🛫 {tag(o_.day, True)} {o_.departure} Uhr ({fmt_price(o_.price)}) · "
                          f"🛬 {tag(r_.day, True)} {r_.departure} Uhr ({fmt_price(r_.price)})",
-                         round_trip_link(O, D, o_.day, r_.day)))
+                         round_trip_link(O, D, o_.day, r_.day),
+                         f"   🛫 {tag(o_.day, True)} {o_.departure} · 🛬 {tag(r_.day, True)} {r_.departure}"))
         return hook, rows
     if name == "nach_dauer":
         spans = [("1 Woche", 6, 8), ("2 Wochen", 13, 15), ("3 Wochen", 20, 22), ("1 Monat", 28, 31)]
@@ -304,7 +308,7 @@ def main():
         img.save(out / f"{datei}.png")
         img.convert("RGB").save(out / f"{datei}.jpg", "JPEG", quality=95, subsampling=0, optimize=True)
         hook, rows = preisstuerze_inhalt(cfg, snap, now) if name == "preisstuerze" else inhalt(name, cfg, snap, now)
-        body_fb, body_ig = lines(rows)
+        body_fb, body_ig = lines(rows, ig_links=(name != "bestpreise_pro_monat"))
         for plat in ("facebook", "instagram"):
             (out / f"{datei}_{plat}.txt").write_text(text(cfg, now, hook, body_fb, body_ig, plat), encoding="utf-8")
         items.append({"name": name, "datei": datei})
