@@ -115,6 +115,7 @@ jobs:
           --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
       - name: Feed-Beiträge veröffentlichen (Schritt des 7-Tage-Kreises; 1 Min. zwischen den Beiträgen)
+        if: ${{ !cancelled() && steps.tag.outcome == 'success' }}   # auch wenn eine Story fehlschlägt
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}

@@ -85,7 +85,23 @@ def wait_url(url, timeout=120):
     return False
 
 
-def publish_instagram(files, base_url, st_day):
+def _ig_story(ig, url, name):
+    c = _call("POST", f"{ig}/media", {"image_url": url, "media_type": "STORIES"})
+    cid = c["id"]
+    time.sleep(5)
+    for _ in range(36):                                       # max. 3 Minuten warten
+        s = _call("GET", cid, {"fields": "status_code"}).get("status_code")
+        if s == "FINISHED":
+            break
+        if s in ("ERROR", "EXPIRED"):
+            raise RuntimeError(f"Container {name}: {s}")
+        time.sleep(5)
+    else:
+        raise RuntimeError(f"Container {name}: Zeitüberschreitung")
+    _call("POST", f"{ig}/media_publish", {"creation_id": cid})
+
+
+def publish_instagram(files, base_url, st_day, fehler):
     ig = os.environ["INSTAGRAM_USER_ID"].strip()
     done = st_day.setdefault("instagram", [])
     for f in files:
@@ -95,18 +111,19 @@ def publish_instagram(files, base_url, st_day):
         url = base_url.rstrip("/") + "/" + f.name
         if not wait_url(url):
             raise RuntimeError(f"Bild nicht öffentlich erreichbar: {url}")
-        c = _call("POST", f"{ig}/media", {"image_url": url, "media_type": "STORIES"})
-        cid = c["id"]
-        for _ in range(36):                                   # max. 3 Minuten warten
-            s = _call("GET", cid, {"fields": "status_code"}).get("status_code")
-            if s == "FINISHED":
+        letzter = None
+        for versuch in range(3):                              # ganze Story bis zu 3× neu versuchen (neuer Container)
+            try:
+                _ig_story(ig, url, f.name)
+                letzter = None
                 break
-            if s in ("ERROR", "EXPIRED"):
-                raise RuntimeError(f"Container {f.name}: {s}")
-            time.sleep(5)
-        else:
-            raise RuntimeError(f"Container {f.name}: Zeitüberschreitung")
-        _call("POST", f"{ig}/media_publish", {"creation_id": cid})
+            except Exception as e:
+                letzter = e
+                print(f"  ⚠️ Instagram {f.name}, Versuch {versuch + 1}: {e}")
+                time.sleep(20 * (versuch + 1))
+        if letzter:
+            fehler.append(f"{f.name}: {letzter}")             # weiter mit der nächsten Story
+            continue
         done.append(f.name)
         print(f"  ✅ Instagram-Story {f.name}")
         yield
@@ -153,7 +170,8 @@ def main():
     st = load_state()
     day = st.setdefault(a.datum, {})
     fehler = []
-    for name, gen in (("Instagram", lambda: publish_instagram(files, a.base_url, day)),
+    ig_fehler = []
+    for name, gen in (("Instagram", lambda: publish_instagram(files, a.base_url, day, ig_fehler)),
                       ("Facebook", lambda: publish_facebook(files, day, a.png_ordner or None))):
         try:
             for _ in gen():
@@ -162,6 +180,9 @@ def main():
             fehler.append(f"{name}: {e}")
             print(f"  ❌ {name}: {e}")
         save_state(st)
+    for e in ig_fehler:
+        fehler.append(f"Instagram {e}")
+        print(f"  ❌ Instagram {e}")
     print(f"Instagram {len(day.get('instagram', []))}/{a.anzahl} · Facebook {len(day.get('facebook', []))}/{a.anzahl}")
     if not fehler:
         day["komplett"] = True
