@@ -216,8 +216,12 @@ def main():
     cfg["route"]["months_ahead"] = v.N_MONATE
     now = cfg.now()
     snap = fetch_all(cfg, now)
-    if any(not m.ok for m in snap.months.values()):
-        sys.exit("Preisabfrage unvollständig – keine Beiträge (keine alten Preise zeigen).")
+    bad = [(r, m) for (r, m), x in snap.months.items() if not x.ok]
+    if bad:
+        import lauf_estado
+        lauf_estado.api_fehler("feed_bestpreis.py", [f"{r} {m:%Y-%m}: {snap.months[(r, m)].error}" for r, m in bad])
+        print("Preisabfrage unvollständig – keine Beiträge (keine alten Preise zeigen).", file=sys.stderr)
+        sys.exit(3)                                   # 3 = API-Fehler → Workflow veröffentlicht nichts
     today = now.date()
     out = Path(a.out) if a.out else PROJ / "output" / "facebook_ahora" / f"feed_bestpreis_{now:%Y-%m-%d}"
     out.mkdir(parents=True, exist_ok=True)

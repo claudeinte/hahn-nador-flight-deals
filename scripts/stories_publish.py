@@ -8,7 +8,8 @@ Instagram braucht eine öffentliche JPEG-Adresse (STORY_BASE_URL, z. B. raw.gith
 Sicherheit:
   - --modus test: nur prüfen/vorbereiten, NICHTS veröffentlichen
   - bereits Veröffentlichtes steht in data/stories_veroeffentlicht.json → keine Doppelten (auch bei erneutem Start)
-  - Wiederholungen bei Fehlern; Reihenfolge bleibt erhalten (bricht pro Plattform beim ersten endgültigen Fehler ab)
+  - jede Story bis zu 3 Versuche; scheitert sie dreimal, geht es mit der nächsten weiter
+  - Ergebnis (veröffentlicht / wiederhergestellt / gescheitert) → output/lauf/stories.json (für den Email-Bericht)
   - Token wird nie ausgegeben
 """
 import argparse
@@ -21,6 +22,9 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lauf_estado  # noqa: E402
 
 PROJ = Path(__file__).resolve().parents[1]
 V = "v27.0"
@@ -86,7 +90,7 @@ def wait_url(url, timeout=120):
 
 
 def _ig_story(ig, url, name):
-    c = _call("POST", f"{ig}/media", {"image_url": url, "media_type": "STORIES"})
+    c = _call("POST", f"{ig}/media", {"image_url": url, "media_type": "STORIES"}, tries=1)
     cid = c["id"]
     time.sleep(5)
     for _ in range(36):                                       # max. 3 Minuten warten
@@ -98,52 +102,72 @@ def _ig_story(ig, url, name):
         time.sleep(5)
     else:
         raise RuntimeError(f"Container {name}: Zeitüberschreitung")
-    _call("POST", f"{ig}/media_publish", {"creation_id": cid})
+    _call("POST", f"{ig}/media_publish", {"creation_id": cid}, tries=1)
 
 
-def publish_instagram(files, base_url, st_day, fehler):
-    ig = os.environ["INSTAGRAM_USER_ID"].strip()
+VERSUCHE = 3
+
+
+def _mit_versuchen(fn, name, plat, erg):
+    """Führt fn() bis zu 3× aus (die POSTs darin selbst ohne Wiederholung → höchstens 3 Versuche pro Story). Ergebnis wird in erg[plat] notiert. True = veröffentlicht."""
+    for versuch in range(1, VERSUCHE + 1):
+        try:
+            fn()
+            erg[plat]["publicadas"].append(name)
+            if versuch > 1:
+                erg[plat]["recuperadas"].append({"story": name, "versuch": versuch})
+                print(f"  ✅ {plat}-Story {name} (wiederhergestellt im Versuch {versuch})")
+            else:
+                print(f"  ✅ {plat}-Story {name}")
+            return True
+        except Exception as e:
+            print(f"  ⚠️ {plat} {name}, Versuch {versuch}/{VERSUCHE}: {e}")
+            if versuch == VERSUCHE:
+                erg[plat]["fallidas"].append({"story": name, "error": str(e), "zeit": lauf_estado.ahora()})
+                print(f"  ❌ {plat} {name}: nach {VERSUCHE} Versuchen gescheitert – weiter mit der nächsten Story")
+                return False
+            time.sleep(20 * versuch)
+
+
+def publish_instagram(files, base_url, st_day, erg, bilder_online=True):
+    ig = os.environ.get("INSTAGRAM_USER_ID", "").strip()
     done = st_day.setdefault("instagram", [])
     for f in files:
         if f.name in done:
-            print(f"  Instagram: {f.name} schon veröffentlicht – übersprungen")
+            erg["instagram"]["ya_publicadas"].append(f.name)
             continue
         url = base_url.rstrip("/") + "/" + f.name
-        if not wait_url(url):
-            raise RuntimeError(f"Bild nicht öffentlich erreichbar: {url}")
-        letzter = None
-        for versuch in range(3):                              # ganze Story bis zu 3× neu versuchen (neuer Container)
-            try:
-                _ig_story(ig, url, f.name)
-                letzter = None
-                break
-            except Exception as e:
-                letzter = e
-                print(f"  ⚠️ Instagram {f.name}, Versuch {versuch + 1}: {e}")
-                time.sleep(20 * (versuch + 1))
-        if letzter:
-            fehler.append(f"{f.name}: {letzter}")             # weiter mit der nächsten Story
-            continue
-        done.append(f.name)
-        print(f"  ✅ Instagram-Story {f.name}")
+
+        def eine():
+            if not bilder_online:
+                raise RuntimeError("Bilder nicht öffentlich bereitgestellt (Schritt 'Bilder öffentlich bereitstellen' fehlgeschlagen)")
+            if not wait_url(url):
+                raise RuntimeError(f"Bild nicht öffentlich erreichbar: {url}")
+            _ig_story(ig, url, f.name)
+
+        if _mit_versuchen(eine, f.name, "instagram", erg):
+            done.append(f.name)
         yield
         time.sleep(3)
 
 
-def publish_facebook(files, st_day, png_dir=None):
-    page = os.environ["FACEBOOK_PAGE_ID"].strip()
+def publish_facebook(files, st_day, erg, png_dir=None):
+    page = os.environ.get("FACEBOOK_PAGE_ID", "").strip()
     done = st_day.setdefault("facebook", [])
     for f in files:
         if f.name in done:
-            print(f"  Facebook: {f.name} schon veröffentlicht – übersprungen")
+            erg["facebook"]["ya_publicadas"].append(f.name)
             continue
         src = (Path(png_dir) / (f.stem + ".png")) if png_dir else f      # Facebook: verlustfreies PNG → schärfer
         if not src.exists():
             src = f
-        ph = _call("POST", f"{page}/photos", {"published": "false"}, file_path=src)
-        _call("POST", f"{page}/photo_stories", {"photo_id": ph["id"]})
-        done.append(f.name)
-        print(f"  ✅ Facebook-Story {f.name}")
+
+        def eine():
+            ph = _call("POST", f"{page}/photos", {"published": "false"}, file_path=src, tries=1)
+            _call("POST", f"{page}/photo_stories", {"photo_id": ph["id"]}, tries=1)
+
+        if _mit_versuchen(eine, f.name, "facebook", erg):
+            done.append(f.name)
         yield
         time.sleep(3)
 
@@ -169,25 +193,28 @@ def main():
         return
     st = load_state()
     day = st.setdefault(a.datum, {})
-    fehler = []
-    ig_fehler = []
-    for name, gen in (("Instagram", lambda: publish_instagram(files, a.base_url, day, ig_fehler)),
-                      ("Facebook", lambda: publish_facebook(files, day, a.png_ordner or None))):
+    erg = {"datum": a.datum, "anzahl": a.anzahl,
+           **{p: {"publicadas": [], "recuperadas": [], "fallidas": [], "ya_publicadas": []} for p in ("instagram", "facebook")}}
+    bilder_online = os.environ.get("BILDER_ONLINE", "ja") == "ja"
+    for plat, gen in (("instagram", lambda: publish_instagram(files, a.base_url, day, erg, bilder_online)),
+                      ("facebook", lambda: publish_facebook(files, day, erg, a.png_ordner or None))):
         try:
             for _ in gen():
                 save_state(st)                                # nach jeder Story sichern
-        except Exception as e:
-            fehler.append(f"{name}: {e}")
-            print(f"  ❌ {name}: {e}")
+                lauf_estado.escribir("stories.json", erg)
+        except Exception as e:                                # unerwarteter Fehler außerhalb einer Story
+            erg[plat]["fallidas"].append({"story": "(alle übrigen)", "error": str(e), "zeit": lauf_estado.ahora()})
+            print(f"  ❌ {plat}: {e}")
         save_state(st)
-    for e in ig_fehler:
-        fehler.append(f"Instagram {e}")
-        print(f"  ❌ Instagram {e}")
-    print(f"Instagram {len(day.get('instagram', []))}/{a.anzahl} · Facebook {len(day.get('facebook', []))}/{a.anzahl}")
+    for plat in ("instagram", "facebook"):
+        erg[plat]["total"] = len(day.get(plat, []))
+    lauf_estado.escribir("stories.json", erg)
+    print(f"Instagram {erg['instagram']['total']}/{a.anzahl} · Facebook {erg['facebook']['total']}/{a.anzahl}")
+    fehler = [f"{p} {x['story']}: {x['error']}" for p in ("instagram", "facebook") for x in erg[p]["fallidas"]]
     if not fehler:
         day["komplett"] = True
         save_state(st)
-    if fehler:
+    else:
         sys.exit("Fehler: " + " | ".join(fehler))
 
 

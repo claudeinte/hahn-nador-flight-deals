@@ -1,7 +1,8 @@
 name: Tages-Stories (Instagram + Facebook)
 
 # Start: von Hand unter "Actions" oder per cron-job.org (workflow_dispatch über die GitHub-API).
-# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 14 Stories auf IG und FB.
+# modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 21–22 Stories + Post des Tages auf IG und FB.
+# Fallos → email de aviso (job "aviso", scripts/lauf_bericht.py). Sin fallos → ningún email.
 on:
   workflow_dispatch:
     inputs:
@@ -26,16 +27,22 @@ jobs:
       PYTHONPATH: src
       TZ: Europe/Berlin
       ANZAHL: "0"           # Anzahl kommt aus output/stories/<datum>/anzahl.txt (21 oder 22)
+      LAUF_DIR: ${{ github.workspace }}/output/lauf   # Estado para el email de aviso
     steps:
-      - uses: actions/checkout@v4
+      # Cada paso tiene un id → el email de aviso (job "aviso") sabe qué paso falló.
+      # Regla: si la API de Ryanair falla (output/lauf/api_fehler.json), NO se publica nada.
+      - id: checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - id: python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - run: pip install -r requirements.txt
+      - id: deps
+        run: bash scripts/paso.sh deps pip install -r requirements.txt
 
       - name: Datum (Berlin) und Doppel-Schutz
         id: tag
@@ -54,43 +61,32 @@ jobs:
           EOF
 
       - name: Preise abfragen und Story-Bilder erstellen (21–22)
+        id: bilder
         if: steps.tag.outputs.fertig == 'nein'
-        run: python scripts/vorschau_story_kalender.py --alle
+        run: bash scripts/paso.sh bilder python scripts/vorschau_story_kalender.py --alle
 
       - name: In JPEG umwandeln
-        if: steps.tag.outputs.fertig == 'nein'
-        run: |
-          D=${{ steps.tag.outputs.datum }}
-          mkdir -p public/$D
-          python - "$D" <<'EOF'
-          import sys, pathlib
-          from PIL import Image
-          d = sys.argv[1]
-          src = sorted(f for f in pathlib.Path(f"output/stories/{d}").glob("[0-9][0-9]_*.png") if not f.name.startswith("00_"))
-          n = int(pathlib.Path(f"output/stories/{d}/anzahl.txt").read_text().strip())
-          assert len(src) == n, f"{len(src)} Bilder statt {n}"
-          for f in src:
-              # Qualität 95 und ohne Farb-Unterabtastung (4:4:4) → Schrift bleibt scharf, auch farbige Preise
-              Image.open(f).convert("RGB").save(f"public/{d}/{f.stem}.jpg", "JPEG", quality=95, subsampling=0, optimize=True)
-          print("JPEG:", [f.stem for f in src])
-          EOF
+        id: jpeg
+        if: steps.tag.outputs.fertig == 'nein' && steps.bilder.outcome == 'success'
+        run: bash scripts/paso.sh jpeg python scripts/stories_jpeg.py ${{ steps.tag.outputs.datum }}
 
       - name: Feed-Beiträge (4:5) erstellen – günstigster Hin- und Rückflug
+        id: feed_bilder
+        if: ${{ !cancelled() && steps.tag.outcome == 'success' && hashFiles('output/lauf/api_fehler.json') == '' }}
         run: |
-          D=${{ steps.tag.outputs.datum }}
-          mkdir -p public/$D
-          python scripts/feed_bestpreis.py --out public/$D
+          mkdir -p public/${{ steps.tag.outputs.datum }}
+          bash scripts/paso.sh feed_bilder python scripts/feed_bestpreis.py --out public/${{ steps.tag.outputs.datum }}
 
       - name: Feed-Rotation vorbereiten (7-Tage-Kreis, Bilder 4:5 + Texte; nichts wird veröffentlicht)
-        run: |
-          D=${{ steps.tag.outputs.datum }}
-          FERTIG=$(python -c "import json,pathlib,sys; p=pathlib.Path('data/feed_rotation.json'); h=(json.loads(p.read_text()) if p.exists() else {}).get('heute') or {}; print('ja' if h.get('tag')=='$D' and h.get('fertig') else 'nein')")
-          if [ "$FERTIG" = "ja" ]; then echo "Feed heute schon veröffentlicht."; exit 0; fi
-          [ -d output/stories/$D ] || python scripts/vorschau_story_kalender.py --alle
-          python scripts/feed_rotation.py --story-ordner output/stories/$D --out public/$D
+        id: rotacion
+        if: ${{ !cancelled() && steps.feed_bilder.outcome == 'success' }}
+        run: bash scripts/paso.sh rotacion bash scripts/rotacion_paso.sh ${{ steps.tag.outputs.datum }}
 
       - name: Bilder öffentlich bereitstellen (Branch "stories")
-        if: inputs.modus == 'veroeffentlichen'
+        id: subir
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ !cancelled() && inputs.modus == 'veroeffentlichen' && hashFiles('output/lauf/api_fehler.json') == '' && (steps.jpeg.outcome == 'success' || steps.rotacion.outcome == 'success') }}
         run: |
           D=${{ steps.tag.outputs.datum }}
           W=$(mktemp -d)
@@ -100,42 +96,57 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add . && git commit -qm "Stories $D"
-          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" stories
+          # Token por cabecera (no en la URL) → nunca aparece en registros ni en el email
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          bash "$GITHUB_WORKSPACE/scripts/paso.sh" subir git -c http.extraheader="AUTHORIZATION: basic $AUTH" push -qf "https://github.com/${{ github.repository }}.git" stories
 
-      - name: Stories veröffentlichen
-        if: steps.tag.outputs.fertig == 'nein'
+      - name: Stories veröffentlichen (jede Story bis zu 3 Versuche)
+        id: stories
+        if: ${{ !cancelled() && steps.tag.outputs.fertig == 'nein' && steps.jpeg.outcome == 'success' && hashFiles('output/lauf/api_fehler.json') == '' }}
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
           STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
+          BILDER_ONLINE: ${{ steps.subir.outcome == 'success' && 'ja' || 'no' }}
         run: >
-          python scripts/stories_publish.py --ordner public/${{ steps.tag.outputs.datum }}
+          bash scripts/paso.sh stories python scripts/stories_publish.py --ordner public/${{ steps.tag.outputs.datum }}
           --png-ordner output/stories/${{ steps.tag.outputs.datum }}
           --datum ${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }} --anzahl $ANZAHL
 
-      - name: Feed-Beiträge veröffentlichen (Schritt des 7-Tage-Kreises; 1 Min. zwischen den Beiträgen)
-        if: ${{ !cancelled() && steps.tag.outcome == 'success' }}   # auch wenn eine Story fehlschlägt
+      - name: Feed-Beiträge veröffentlichen (Schritt des 7-Tage-Kreises; auch wenn eine Story fehlschlägt)
+        id: feed
+        if: ${{ !cancelled() && steps.rotacion.outcome == 'success' && hashFiles('output/lauf/api_fehler.json') == '' }}
         env:
           FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
           STORY_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/stories/${{ steps.tag.outputs.datum }}
-        run: python scripts/feed_publish.py --ordner public/${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }}
+          BILDER_ONLINE: ${{ steps.subir.outcome == 'success' && 'ja' || 'no' }}
+        run: bash scripts/paso.sh feed python scripts/feed_publish.py --ordner public/${{ steps.tag.outputs.datum }} --modus ${{ inputs.modus }}
 
-      - name: Preisverlauf und Veröffentlichungs-Protokoll speichern
+      - name: Preisverlauf und Veröffentlichungs-Protokoll speichern (immer)
+        id: guardar
         if: always()
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add data/snapshots/ 2>/dev/null || true
-          git add data/stories_veroeffentlicht.json 2>/dev/null || true
-          git add data/feed_veroeffentlicht.json 2>/dev/null || true
-          git add data/feed_rotation.json 2>/dev/null || true
-          if ! git diff --cached --quiet; then
-            git commit -qm "Stories/Preise $(date +'%Y-%m-%d %H:%M')"
-            for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
-          fi
+          bash scripts/paso.sh guardar bash scripts/guardar_estado.sh
+
+      - name: Ergebnis aller Schritte für den Email-Bericht festhalten (immer)
+        if: always()
+        env:
+          PASOS: ${{ toJSON(steps) }}
+        run: mkdir -p output/lauf && printf '%s' "$PASOS" > output/lauf/pasos.json
+
+      - name: Estado de la ejecución para el aviso (immer)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lauf-estado
+          path: output/lauf/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Bilder als ZIP bereitstellen
         if: always()
@@ -145,3 +156,31 @@ jobs:
           path: public/
           if-no-files-found: ignore
           retention-days: 14
+
+  # Job separado: se ejecuta SIEMPRE, aunque el job anterior falle, se cancele o se quede sin tiempo.
+  # Sin fallos → no envía nada. Con fallos → UN solo email (ver scripts/lauf_bericht.py).
+  aviso:
+    needs: stories
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TZ: Europe/Berlin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Estado de la ejecución descargar
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: lauf-estado
+          path: output/lauf/
+      - name: Email de aviso (solo si algo falló)
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_RESULT: ${{ needs.stories.result }}
+        run: python scripts/lauf_bericht.py

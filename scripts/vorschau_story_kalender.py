@@ -1711,7 +1711,11 @@ def main_alle(testdaten=False):
     snap = fetch_all(cfg, now)
     bad = [k for k, m in snap.months.items() if not m.ok]
     if bad:
-        sys.exit(f"Preisabfrage unvollständig ({bad}) – keine Bilder (keine alten Preise zeigen).")
+        import lauf_estado
+        lauf_estado.api_fehler("vorschau_story_kalender.py",
+                               [f"{r} {m:%Y-%m}: {snap.months[(r, m)].error}" for r, m in bad])
+        print(f"Preisabfrage unvollständig ({bad}) – keine Bilder (keine alten Preise zeigen).", file=sys.stderr)
+        sys.exit(3)                                   # 3 = API-Fehler → Workflow veröffentlicht nichts
     (PROJ / "data" / "snapshots").mkdir(parents=True, exist_ok=True)
     pickle.dump(snap, open(PROJ / "data" / "snapshots" / now.strftime("%Y-%m-%d_%H%M.pkl"), "wb"))
     prev, prev_at = previous_day_prices(now.date())

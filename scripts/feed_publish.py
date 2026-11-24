@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from stories_publish import _call, wait_url  # noqa: E402
+import lauf_estado  # noqa: E402
 
 PROJ = Path(__file__).resolve().parents[1]
 ROT = PROJ / "data" / "feed_rotation.json"
@@ -52,6 +53,7 @@ def main():
     d = Path(a.ordner)
     if not (d / "feed_plan.json").exists():
         print("Kein feed_plan.json – heute kein Feed-Beitrag (schon erledigt).")
+        lauf_estado.escribir("feed.json", {"estado": "ya_publicado_hoy", "beitraege": {}})
         return
     plan = json.loads((d / "feed_plan.json").read_text())
     st = json.loads(ROT.read_text()) if ROT.exists() else {"naechster_schritt": 0, "heute": {}}
@@ -59,15 +61,19 @@ def main():
     if h.get("tag") != plan["datum"]:
         h = {"tag": plan["datum"], "schritt": plan["schritt"], "erledigt": [], "fertig": False}
     print(f"Feed-Rotation {plan['datum']}: Tag {plan['tag_im_kreis']} von 7 {plan.get('hinweis') or ''}")
+    erg = {"datum": plan["datum"], "tag_im_kreis": plan["tag_im_kreis"], "beitraege": {}}
     if h.get("fertig"):
         print("Heute schon alles veröffentlicht – nichts zu tun.")
+        lauf_estado.escribir("feed.json", dict(erg, estado="ya_publicado_hoy"))
         return
+    bilder_online = os.environ.get("BILDER_ONLINE", "ja") == "ja"
     fehler, letzter_post = [], None
     for x in plan["beitraege"]:
         for plat in ("facebook", "instagram"):
             k = f"{x['name']}/{plat}"
             if k in h["erledigt"]:
                 print(f"{k}: heute schon veröffentlicht – übersprungen")
+                erg["beitraege"][k] = {"estado": "ya_publicado"}
                 continue
             if a.modus == "test":
                 print(f"TEST {k}: würde veröffentlichen ({x['datei']})")
@@ -80,18 +86,24 @@ def main():
                 if plat == "facebook":
                     pid = post_facebook(d / f"{x['datei']}.png", text)
                 else:
+                    if not bilder_online:
+                        raise RuntimeError("Bilder nicht öffentlich bereitgestellt (Schritt 'Bilder öffentlich bereitstellen' fehlgeschlagen)")
                     pid = post_instagram(a.base_url.rstrip("/") + f"/{x['datei']}.jpg", text)
                 h["erledigt"].append(k)
                 h.setdefault("ids", {})[k] = pid
                 letzter_post = x["name"]
                 print(f"✅ {k} veröffentlicht")
+                erg["beitraege"][k] = {"estado": "publicado"}
             except Exception as e:
                 fehler.append(f"{k}: {e}")
+                erg["beitraege"][k] = {"estado": "fallido", "error": str(e), "zeit": lauf_estado.ahora()}
                 print(f"❌ {k}: {e}")
+            lauf_estado.escribir("feed.json", dict(erg, estado="en_curso"))
             st["heute"] = h
             ROT.write_text(json.dumps(st, indent=1, ensure_ascii=False) + "\n")
     if a.modus == "test":
         return
+    lauf_estado.escribir("feed.json", dict(erg, estado="con_errores" if fehler else "ok"))
     if not fehler:
         h["fertig"] = True
         st["heute"] = h
