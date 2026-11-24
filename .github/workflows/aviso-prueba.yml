@@ -1,0 +1,20 @@
+name: Aviso de prueba (email de GitHub)
+
+# Solo para comprobar que llegan los emails de GitHub cuando un run falla.
+# No publica nada, no consulta precios. Falla a propósito.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fallo de prueba
+        run: |
+          echo "## ⚠️ Prueba del aviso por email" >> "$GITHUB_STEP_SUMMARY"
+          echo "Esto es solo una prueba. No se publicó nada. Si recibiste el email de GitHub, los avisos funcionan." >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Prueba del aviso::Solo una prueba – no se publicó nada. Si te llegó el email, los avisos funcionan."
+          exit 1
