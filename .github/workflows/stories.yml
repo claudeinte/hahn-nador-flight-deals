@@ -2,7 +2,7 @@ name: Tages-Stories (Instagram + Facebook)
 
 # Start: von Hand unter "Actions" oder per cron-job.org (workflow_dispatch über die GitHub-API).
 # modus=test → Bilder erstellen, nichts veröffentlichen. modus=veroeffentlichen → 21–22 Stories + Post des Tages auf IG und FB.
-# Fallos → email de aviso (job "aviso", scripts/lauf_bericht.py). Sin fallos → ningún email.
+# Fallos → la ejecución queda "Failed" y GitHub envía su email (job "aviso"). Sin fallos → ningún email.
 on:
   workflow_dispatch:
     inputs:
@@ -158,7 +158,7 @@ jobs:
           retention-days: 14
 
   # Job separado: se ejecuta SIEMPRE, aunque el job anterior falle, se cancele o se quede sin tiempo.
-  # Sin fallos → no envía nada. Con fallos → UN solo email (ver scripts/lauf_bericht.py).
+  # Sin fallos → no hay aviso. Con fallos → la ejecución queda "Failed" → UN email de GitHub (scripts/lauf_bericht.py).
   aviso:
     needs: stories
     if: always()
@@ -176,11 +176,10 @@ jobs:
         with:
           name: lauf-estado
           path: output/lauf/
-      - name: Email de aviso (solo si algo falló)
+      # Sin Gmail: si algo falló, este paso termina con error → GitHub envía su propio email de aviso
+      # a la cuenta que inició la ejecución. El informe completo queda en la página de la ejecución.
+      - name: Aviso (falla solo si algo falló → email de GitHub)
         env:
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           JOB_RESULT: ${{ needs.stories.result }}
         run: python scripts/lauf_bericht.py

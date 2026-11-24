@@ -7,15 +7,15 @@ Reglas (pedidas por el usuario, 24.11.2026):
   - Cualquier otro fallo → UN solo email al final: fecha y hora, paso, plataforma, error, estado final
     de las stories, del post en cada plataforma y del guardado, y el enlace a la ejecución de GitHub Actions.
 
-Lee los archivos de output/lauf/ (ver scripts/lauf_estado.py). Envía con Gmail (secretos GMAIL_USER,
-GMAIL_PASSWORD = contraseña de aplicación; destinatario EMAIL_TO, si falta → GMAIL_USER).
---trocken: no envía nada, solo guarda el email en output/lauf/emails/ (para la simulación).
+Lee los archivos de output/lauf/ (ver scripts/lauf_estado.py).
+El email lo envía GitHub mismo (deseo del usuario: su dirección no se guarda en ningún sitio): si hay un fallo,
+este paso escribe el informe en la página de la ejecución (resumen + anotación) y termina con error → la ejecución
+queda "Failed" y GitHub manda su email de aviso a la cuenta que la inició (claudeinte). Todo bien → sin error,
+sin email. Requisito: en github.com/settings/notifications → "Actions": Email activado y
+"Only notify for failed workflows".
 """
-import argparse
 import os
-import smtplib
 import sys
-from email.message import EmailMessage
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -162,45 +162,26 @@ def analizar(pasos, run_url, job_result, ahora):
     return ("fallo", f"⚠️ {fecha}: fallo en la publicación diaria ({problemas[0][1]})", cuerpo(cab, problemas))
 
 
-def enviar(asunto, cuerpo):
-    user = os.environ.get("GMAIL_USER", "").strip()
-    pw = os.environ.get("GMAIL_PASSWORD", "").replace(" ", "").strip()
-    to = os.environ.get("EMAIL_TO", "").strip() or user
-    if not (user and pw):
-        sys.exit("Faltan los secretos GMAIL_USER / GMAIL_PASSWORD – el email NO se pudo enviar (contenido arriba).")
-    m = EmailMessage()
-    m["Subject"], m["From"], m["To"] = asunto, user, to
-    m.set_content(cuerpo)
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
-        s.login(user, pw)
-        s.send_message(m)
-    print("Email enviado.")
-
-
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--trocken", action="store_true", help="no enviar; guardar el email en output/lauf/emails/")
-    a = ap.parse_args()
-    import json
     pasos = le.leer("pasos.json")
     if pasos and "_ilegible" in pasos:
         pasos = None
     run_url = os.environ.get("RUN_URL", "(sin enlace)")
     res = analizar(pasos, run_url, os.environ.get("JOB_RESULT", ""), le.ahora())
+    resumen = os.environ.get("GITHUB_STEP_SUMMARY")
     if res is None:
-        print("Todo terminó bien – no se envía ningún email.")
+        print("Todo terminó bien – no hay aviso.")
+        if resumen:
+            Path(resumen).write_text("✅ Todo terminó bien – sin aviso.\n", encoding="utf-8")
         return
     tipo, asunto, cuerpo = res
-    print(f"Asunto: {asunto}\n\n{cuerpo}")
-    if a.trocken:
-        d = le.lauf_dir() / "emails"
-        d.mkdir(exist_ok=True)
-        n = len(list(d.glob("*.json"))) + 1
-        (d / f"email_{n}.json").write_text(json.dumps({"tipo": tipo, "asunto": asunto, "cuerpo": cuerpo},
-                                                      ensure_ascii=False, indent=1), encoding="utf-8")
-        print("(simulación: email guardado, no enviado)")
-        return
-    enviar(asunto, cuerpo)
+    print(f"{asunto}\n\n{cuerpo}")
+    le.escribir("aviso.json", {"tipo": tipo, "asunto": asunto, "cuerpo": cuerpo})
+    if resumen:                                   # informe completo en la página de la ejecución
+        Path(resumen).write_text(f"## {asunto}\n\n```\n{cuerpo}```\n", encoding="utf-8")
+    corto = cuerpo.split("ESTADO FINAL")[0].strip().replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+    print(f"::error title={asunto.replace(':', ' -').replace(',', ' ')}::{corto}")
+    sys.exit(1)                                   # ejecución "Failed" → GitHub envía su email de aviso
 
 
 if __name__ == "__main__":

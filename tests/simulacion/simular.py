@@ -2,7 +2,8 @@
 
 Lee el workflow REAL: evalúa cada condición `if:` igual que GitHub Actions y ejecuta los mismos comandos
 `run:` (paso.sh, scripts de Python, guardar_estado.sh, lauf_bericht.py) en una copia temporal del proyecto.
-Solo se sustituyen las partes externas (ver sim_wrapper.py): API de Ryanair, API de Meta, Gmail, GitHub.
+Solo se sustituyen las partes externas (ver sim_wrapper.py): API de Ryanair, API de Meta, GitHub.
+El email de aviso lo envía GitHub cuando la ejecución termina "Failed" → aquí: ejecución fallida + informe.
 Nada se publica, no se envía ningún email y el repositorio real no se toca.
 
 Uso:  .venv/bin/python tests/simulacion/simular.py [escenario …]
@@ -114,6 +115,7 @@ class Job:
         env.update({k: self.sustituir(v) for k, v in (st.get("env") or {}).items()})
         env["GITHUB_OUTPUT"] = str(out_file)
         env["GITHUB_WORKSPACE"] = str(self.ws)
+        env["GITHUB_STEP_SUMMARY"] = str(self.ws / ".gh_summary.md")
         script = self.sustituir(st["run"])
         p = subprocess.run(["bash", "-e", "-c", script], cwd=self.ws, env=env, capture_output=True, text=True)
         (self.ws / "sim_logs").mkdir(exist_ok=True)
@@ -170,8 +172,7 @@ def simular(nombre, reglas):
     github = {"workspace": str(ws), "repository": "simulacion/hahn-nador-flight-deals",
               "server_url": "https://github.com", "run_id": "999000111", "run_number": "1"}
     secrets = {"FACEBOOK_PAGE_ACCESS_TOKEN": "token-ficticio", "FACEBOOK_PAGE_ID": "111", "INSTAGRAM_USER_ID": "222",
-               "GITHUB_TOKEN": "x", "GMAIL_USER": "simulacion@example.invalid", "GMAIL_PASSWORD": "ficticia",
-               "EMAIL_TO": ""}
+               "GITHUB_TOKEN": "x"}
     ctx = {"github": github, "secrets": secrets, "modus": "veroeffentlichen", "needs": {},
            "job_env": wf["jobs"]["stories"].get("env", {})}
 
@@ -185,6 +186,13 @@ def simular(nombre, reglas):
     aviso.ejecutar(wf["jobs"]["aviso"]["steps"], {})
     s = json.loads(state.read_text())
     lauf = ws / "output" / "lauf"
+    # GitHub envía UN email cuando la ejecución termina "Failed" (algún job falló); contenido = informe del aviso
+    ejecucion_fallida = job.fallo or aviso.fallo
+    aviso_json = json.loads((lauf / "aviso.json").read_text()) if (lauf / "aviso.json").exists() else None
+    s["emails"] = [aviso_json] if ejecucion_fallida else []
+    s["coherente"] = ejecucion_fallida == (aviso_json is not None) and aviso.fallo == (aviso_json is not None)
+    resumen = ws / ".gh_summary.md"
+    s["resumen"] = resumen.read_text() if resumen.exists() else ""
     leer = lambda n: json.loads((lauf / n).read_text()) if (lauf / n).exists() else None
     return {"tmp": tmp, "log": job.log, "aviso_log": aviso.log, "estado": s, "stories": leer("stories.json"),
             "feed": leer("feed.json"), "guardado": leer("guardado.json"), "api": leer("api_fehler.json"),
@@ -261,6 +269,9 @@ def comprobar(nombre, r):
         c("Guardado registrado como fallido", gd and gd["estado"] == "fallido")
         c("Exactamente 1 email", len(emails) == 1)
         c("El email nombra el guardado", emails and "Guardar estado en el repositorio" in emails[0]["cuerpo"])
+    c("Ejecución 'Failed' (= email de GitHub) solo si hay aviso, y viceversa", s["coherente"])
+    if emails:
+        c("Informe completo en la página de la ejecución (resumen)", emails[0]["cuerpo"].strip()[:40] in s["resumen"])
     return chk
 
 
@@ -277,7 +288,7 @@ def main():
             total_ok &= ok
             print(f"   {'PASA ' if ok else 'FALLA'}  {desc}")
         for i, e in enumerate(r["estado"]["emails"], 1):
-            print(f"\n   ✉️  Email {i} (no enviado) — Asunto: {e['asunto']}\n")
+            print(f"\n   ✉️  Ejecución 'Failed' → GitHub enviaría 1 email · informe en la página — {e['asunto']}\n")
             print("\n".join("      " + x for x in e["cuerpo"].splitlines()))
         out = PROJ / "output" / "simulacion" / nombre
         shutil.rmtree(out, ignore_errors=True)
