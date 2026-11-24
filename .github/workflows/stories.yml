@@ -33,6 +33,10 @@ jobs:
       # Regla: si la API de Ryanair falla (output/lauf/api_fehler.json), NO se publica nada.
       - id: checkout
         uses: actions/checkout@v4
+        with:
+          # Siempre el estado MÁS RECIENTE de la rama (no el commit del inicio): así "Re-run"
+          # también ve lo ya publicado y no duplica stories ni el post.
+          ref: ${{ github.ref_name }}
 
       - id: python
         uses: actions/setup-python@v5
@@ -146,6 +150,7 @@ jobs:
           name: lauf-estado
           path: output/lauf/
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 14
 
       - name: Bilder als ZIP bereitstellen
@@ -155,6 +160,7 @@ jobs:
           name: stories-${{ steps.tag.outputs.datum }}-${{ github.run_number }}
           path: public/
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 14
 
   # Job separado: se ejecuta SIEMPRE, aunque el job anterior falle, se cancele o se quede sin tiempo.
