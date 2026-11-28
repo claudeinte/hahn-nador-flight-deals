@@ -1,17 +1,17 @@
 {
  "erklaerung": "Feed-Rotation (7 Tage): 0=#1+#2 günstigster Hin/Rück, 1=#3 Preisstürze (ohne → Schritt 2), 2=#4+#5 Top 5 Hin/Rück, 3=#6+#7+#8 Familie, 4=#9 Top 5 Kombinationen, 5=#10 nach Dauer, 6=#11 Bestpreise pro Monat",
- "naechster_schritt": 5,
+ "naechster_schritt": 6,
  "heute": {
-  "tag": "2026-11-27",
-  "schritt": 4,
+  "tag": "2026-11-28",
+  "schritt": 5,
   "erledigt": [
-   "top5_kombinationen/facebook",
-   "top5_kombinationen/instagram"
+   "nach_dauer/facebook",
+   "nach_dauer/instagram"
   ],
   "fertig": true,
   "ids": {
-   "top5_kombinationen/facebook": "1397445043459853_122114659749545110",
-   "top5_kombinationen/instagram": "18006206270806278"
+   "nach_dauer/facebook": "1397445043459853_122115123969545110",
+   "nach_dauer/instagram": "18164669878441811"
   }
  }
 }
