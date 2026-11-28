@@ -1,0 +1,12 @@
+{
+ "datum": "2026-11-28",
+ "schritt": 5,
+ "tag_im_kreis": 6,
+ "hinweis": "",
+ "beitraege": [
+  {
+   "name": "nach_dauer",
+   "datei": "feed_r_nach_dauer"
+  }
+ ]
+}

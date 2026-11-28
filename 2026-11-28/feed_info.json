@@ -1,0 +1,14 @@
+{
+ "hinflug": {
+  "tag": "2027-01-06",
+  "preis": 18.99,
+  "abflug": "08:00",
+  "datei": "feed_1_hinflug"
+ },
+ "rueckflug": {
+  "tag": "2026-12-18",
+  "preis": 19.99,
+  "abflug": "20:50",
+  "datei": "feed_2_rueckflug"
+ }
+}
